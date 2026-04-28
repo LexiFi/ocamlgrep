@@ -1,3 +1,3 @@
 (executable
- (public_name grep_cmt)
+ (public_name ocamlgrep)
  (libraries compiler-libs.common))

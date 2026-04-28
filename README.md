@@ -9,7 +9,7 @@
 
 # Structural search of OCaml code
 
-`grep_cmt` is a command-line tool written at LexiFi to perform structural search
+`ocamlgrep` is a command-line tool written at LexiFi to perform structural search
 of OCaml code.
 
 The code is released as-is in case it is of interest to the community. The
@@ -26,13 +26,13 @@ dune build
 The tool requires OCaml 5.2 (since it depends on `compiler-libs`, compilation
 aginst other versions of OCaml will require some adjustments).
 
-This produces an executable `_build/install/bin/grep_cmt.exe` which can be run
+This produces an executable `_build/install/bin/ocamlgrep.exe` which can be run
 from the command line.
 
 ## Usage
 
 ```shell
-grep_cmt PATTERN
+ocamlgrep PATTERN
 ```
 
 The tool assumes that it is executed within a Dune workspace, as it has a number
@@ -40,7 +40,7 @@ of heuristics that will not work otherwise. The tool will search the files under
 the current directory subtree.
 
 You will need to run `dune build @check` in your project to ensure all `.cmt`
-files are up-to-date before using `grep_cmt`.
+files are up-to-date before using `ocamlgrep`.
 
 `PATTERN`: The pattern to search for. This should be a valid OCaml *expression*.
 
@@ -82,10 +82,10 @@ files are up-to-date before using `grep_cmt`.
 ## Examples
 
 ```sh
-grep_cmt 'List.filter'
-grep_cmt '(__ (__ : floatarray): float array)'
-grep_cmt  'List.rev __ @ __'
-grep_cmt 'match __ with None -> __ | Some __1 -> Some __1'
-grep_cmt 'List.fold_left __ __ (List.map __ __)'
-grep_cmt 'Stdlib.max (__:float) __'
+ocamlgrep 'List.filter'
+ocamlgrep '(__ (__ : floatarray): float array)'
+ocamlgrep  'List.rev __ @ __'
+ocamlgrep 'match __ with None -> __ | Some __1 -> Some __1'
+ocamlgrep 'List.fold_left __ __ (List.map __ __)'
+ocamlgrep 'Stdlib.max (__:float) __'
 ```

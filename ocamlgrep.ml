@@ -1,4 +1,4 @@
-(* This file is part of the grep_cmt package *)
+(* This file is part of the ocamlgrep package *)
 (* See the attached LICENSE file.            *)
 (* Copyright (C) 2000-2024 LexiFi            *)
 
@@ -393,7 +393,7 @@ and match_case : type k. k case -> _ -> _ = fun {c_lhs; c_guard; c_rhs} {pc_lhs;
   match_opt match_expr c_guard pc_guard;
   match_expr c_rhs pc_rhs
 
-let grep_cmt search =
+let ocamlgrep search =
   let expr =
     match Parse.implementation (Lexing.from_string search) with
     | [{Parsetree.pstr_desc = Pstr_eval (x, _); _}] -> x
@@ -501,13 +501,13 @@ let collect_cmi_dirs () =
 
 let main () =
   let search = ref None in
-  let usage_msg = "Usage: grep_cmt <string>" in
+  let usage_msg = "Usage: ocamlgrep <string>" in
   Arg.parse [] (fun s -> search := Some s) usage_msg;
   let extra_includes = collect_cmi_dirs () in
   Load_path.init ~auto_include:Load_path.no_auto_include ~visible:(List.append extra_includes [Config.standard_library]) ~hidden:[];
   match !search with
   | None -> Arg.usage [] usage_msg; exit 0
-  | Some s -> grep_cmt s
+  | Some s -> ocamlgrep s
 
 let () =
   try
