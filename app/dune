@@ -1,0 +1,7 @@
+; ocamlgrep command-line interface (CLI)
+(executable
+ (public_name ocamlgrep)
+ (libraries
+   ocamlgrep
+ )
+)

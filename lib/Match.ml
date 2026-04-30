@@ -1,73 +1,38 @@
-(* This file is part of the ocamlgrep package *)
-(* See the attached LICENSE file.            *)
-(* Copyright (C) 2000-2024 LexiFi            *)
+(* This file is part of the ocamlgrep package
+   See the attached LICENSE file.
+   Copyright (C) 2026 LexiFi *)
+(*
+   Match a pattern against a program
+*)
 
 open Asttypes
 open Parsetree
 open Typedtree
 open Longident
 
-let initial_cwd = Sys.getcwd ()
+exception Cannot_parse_type of exn
 
-let drop_prefix ~prefix s =
-  if String.starts_with ~prefix s then
-    String.sub s (String.length prefix) (String.length s - String.length prefix)
-  else
-    s
+(* private exception used to fail a match *)
+exception DontMatch
 
-let read_lines fn =
-  String.split_on_char '\n' (In_channel.with_open_text fn In_channel.input_all)
+let initial_env = lazy (Compmisc.initial_env ())
+
+let parse_type t =
+  let env = Lazy.force initial_env in
+  try (Typetexp.transl_type_scheme env t).ctyp_type
+  with e -> raise (Cannot_parse_type e)
 
 let memoize h f k =
   match Hashtbl.find_opt h k with
   | None -> let r = f k in Hashtbl.add h k r; r
   | Some r -> r
 
-let build_root, build_prefix =
-  let rec loop prefix dir =
-    if Sys.file_exists (Filename.concat dir "_build") then
-      let absdir =
-        Fun.protect ~finally:(fun () -> Sys.chdir initial_cwd)
-          (fun () -> Sys.chdir dir; Sys.getcwd ())
-      in
-      absdir, prefix
-    else
-      let dir' = Filename.dirname dir in
-      if dir' = dir then failwith "Could not detect _build";
-      loop (Filename.concat (Filename.basename dir) prefix) dir'
-  in
-  loop "" initial_cwd
+(* warning: global, ever-growing cache *)
+let parse_type = memoize (Hashtbl.create 10) parse_type
 
-let in_build_dir path =
-  Filename.concat build_root (Filename.concat "_build" (Filename.concat "default" path))
-
-type color =
-  | Yellow
-  | Red
-  | Green
-
-let color c fmt =
-  Printf.sprintf ("\027[1;%dm" ^^ fmt ^^ "\027[0m") (match c with Yellow -> 33 | Red -> 31 | Green -> 32)
-
-let print_results_with_color_range i c1 c2 s file_color =
-  let i_color = color Yellow "%d" i in
-  let s_color =
-    let len = String.length s in
-    if c2 > len || c1 > len then
-      Printf.sprintf
-        " Skipping this line with wrong indexes -- Maybe you should think about recompiling this file."
-    else
-      String.sub s 0 c1 ^
-      color Red "%s" (String.sub s c1 (c2-c1)) ^
-      String.sub s c2 (String.length s - c2)
-  in
-  Printf.printf "%s:%s:%s\n%!" file_color i_color s_color
-
-(*** Structured search ***)
-
-exception DontMatch
-
-let wildcards = ref []
+(* This global is cleared before each search.
+   Consider passing it around explicitly as part of an 'env' argument. *)
+let wildcards = ref ([] : (Asttypes.label * Parsetree.expression) list)
 
 (* wildcards are in the form __123 ie.
    the two first characters are underscores;
@@ -145,23 +110,12 @@ let match_list f t p =
   if List.compare_lengths t p = 0 then List.iter2 f t p
   else raise DontMatch
 
-exception Cannot_parse_type of exn
-
-let initial_env = lazy (Compmisc.initial_env ())
-
-let parse_type t =
-  let env = Lazy.force initial_env in
-  try (Typetexp.transl_type_scheme env t).ctyp_type
-  with e -> raise (Cannot_parse_type e)
-
-let parse_type = memoize (Hashtbl.create 10) parse_type
-
 let tconstant_equal_pconst tconst pconst =
   match Typecore.constant pconst with
   | Error _ -> false
   | Ok pconst -> Parmatch.const_compare tconst pconst = 0
 
-let rec match_expr texpr pexpr =
+let rec match_expr texpr (pexpr : Parsetree.expression) =
   if texpr.exp_loc.loc_ghost && not pexpr.pexp_loc.loc_ghost
   then raise DontMatch;
 
@@ -393,126 +347,32 @@ and match_case : type k. k case -> _ -> _ = fun {c_lhs; c_guard; c_rhs} {pc_lhs;
   match_opt match_expr c_guard pc_guard;
   match_expr c_rhs pc_rhs
 
-let ocamlgrep search =
-  let expr =
-    match Parse.implementation (Lexing.from_string search) with
-    | [{Parsetree.pstr_desc = Pstr_eval (x, _); _}] -> x
-    | _ -> failwith "Can only grep for an expression."
-    | exception _ -> failwith "Could not parse search expression."
-  in
-  let search_cmt cmt =
-    let open Cmt_format in
-    let res = ref [] in
-    let cmt_search =
-      let open Tast_iterator in
-      let super = default_iterator in
-      let pat : type k. _ -> k general_pattern -> _ = fun self p ->
-        try
-          match_pat_expr p expr;
-          res := p.Typedtree.pat_loc :: !res
-        with DontMatch ->
-          super.pat self p
-      in
-      let expr self e =
-        wildcards := [];
-        try
-          match_expr e expr;
-          res := e.Typedtree.exp_loc :: !res
-        with DontMatch ->
-          super.expr self e
-      in
-      {super with expr; pat}
-    in
-    begin match cmt.cmt_annots with
-    | Implementation str -> cmt_search.Tast_iterator.structure cmt_search str
-    | Interface sg -> cmt_search.Tast_iterator.signature cmt_search sg
-    | _ -> ()
-    end;
-    List.sort Stdlib.compare !res
-  in
-  let rec walk dir =
-    Array.iter (fun entry ->
-        let entry = Filename.concat dir entry in
-        if Sys.is_directory entry then
-          walk entry
-        else if Filename.check_suffix entry ".cmt" then begin
-          match Cmt_format.read_cmt entry with
-          | {Cmt_format.cmt_sourcefile = Some source; cmt_source_digest = Some digest; _} as cmt ->
-              let source, pp_source =
-                if Filename.check_suffix source ".pp.ml" then
-                  Filename.chop_suffix source ".pp.ml" ^ ".ml", in_build_dir source
-                else
-                  let source = drop_prefix ~prefix:build_prefix source in
-                  source, source
-              in
-              if not (Sys.file_exists pp_source) then ()
-              else if digest <> Digest.file pp_source then
-                Printf.eprintf "** Warning: %s does not correspond to %s (ignoring)\n%!"
-                  entry pp_source
-              else begin
-                let file_color = color Green "%s" source in
-                match search_cmt cmt with
-                | exception Cannot_parse_type exn ->
-                    failwith (Format.asprintf "%s: could not parse type: %a." entry Location.report_exception exn)
-                | exception exn ->
-                    Format.eprintf "%s: error while analysing %s: %a@." (color Yellow "Warning") entry Location.report_exception exn
-                | [] -> ()
-                | _ :: _ as locs ->
-                    let src_lines = Array.of_list (read_lines source) in
-                    List.iter
-                      (fun {Location.loc_start; loc_end; _} ->
-                         let i = loc_start.pos_lnum in
-                         let s = src_lines.(i - 1) in
-                         let c1 = loc_start.pos_cnum - loc_start.pos_bol in
-                         let c2 =
-                           if loc_end.pos_lnum = loc_start.pos_lnum then
-                             loc_end.pos_cnum - loc_end.pos_bol
-                           else
-                             String.length s
-                         in
-                         print_results_with_color_range i c1 c2 s file_color
-                      ) locs
-              end
-          | {cmt_sourcefile = None; _} | {cmt_source_digest = None; _} ->
-              ()
-          | exception Cmt_format.Error (Cmt_format.Not_a_typedtree _) ->
-              failwith "error reading cmt file"
-        end
-      ) (Sys.readdir dir)
-  in
-  walk (in_build_dir build_prefix)
-
-(*** Command-line parsing ***)
-
-let collect_cmi_dirs () =
+let search_cmt cmt query_expr =
+  let open Cmt_format in
   let res = ref [] in
-  let rec walk dir =
-    Array.iter (fun entry ->
-        let entry = Filename.concat dir entry in
-        if Sys.is_directory entry then begin
-          if Filename.basename entry = "byte" && Array.exists (fun name -> Filename.check_suffix name ".cmi") (Sys.readdir entry) then
-            res := entry :: !res;
-          walk entry
-        end
-      ) (Sys.readdir dir)
+  let cmt_search =
+    let open Tast_iterator in
+    let super = default_iterator in
+    let pat : type k. _ -> k general_pattern -> _ = fun self p ->
+      try
+        match_pat_expr p query_expr;
+        res := p.Typedtree.pat_loc :: !res
+      with DontMatch ->
+        super.pat self p
+    in
+    let expr self e =
+      wildcards := [];
+      try
+        match_expr e query_expr;
+        res := e.Typedtree.exp_loc :: !res
+      with DontMatch ->
+        super.expr self e
+    in
+    {super with expr; pat}
   in
-  walk (in_build_dir build_prefix);
-  List.rev !res
-
-let main () =
-  let search = ref None in
-  let usage_msg = "Usage: ocamlgrep <string>" in
-  Arg.parse [] (fun s -> search := Some s) usage_msg;
-  let extra_includes = collect_cmi_dirs () in
-  Load_path.init ~auto_include:Load_path.no_auto_include ~visible:(List.append extra_includes [Config.standard_library]) ~hidden:[];
-  match !search with
-  | None -> Arg.usage [] usage_msg; exit 0
-  | Some s -> ocamlgrep s
-
-let () =
-  try
-    main ()
-  with exn ->
-    let s = match exn with Failure s | Sys_error s -> s | exn -> Printexc.to_string exn in
-    Printf.eprintf "%s: %s\n%!" (color Red "Error") s;
-    exit 1
+  begin match cmt.cmt_annots with
+  | Implementation str -> cmt_search.Tast_iterator.structure cmt_search str
+  | Interface sg -> cmt_search.Tast_iterator.signature cmt_search sg
+  | _ -> ()
+  end;
+  List.sort Stdlib.compare !res
