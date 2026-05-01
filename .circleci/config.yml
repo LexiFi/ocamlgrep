@@ -1,0 +1,133 @@
+#
+# CircleCI configuration. Runs each time we push a new commit to GitHub.
+#
+# This builds the project and runs tests on Linux and Windows
+# for one specific minor version of OCaml (X.Y).
+# Each minor OCaml version is supported in its own Git branch
+# due to incompatibilities of compiler-libs from one version of OCaml
+# to another. For example, the name of the branch for ocaml 5.2.1 is
+# '502'.
+#
+version: 2.1
+
+orbs:
+  win: circleci/windows@5.1.0
+
+commands:
+  build:
+    parameters:
+      ocaml_version:
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Set weekly cache key segment
+          command: |
+            echo $(( $(date +%s) / 604800 )) > week_id.txt
+            echo $(( $(date +%s) / 604800 - 1 )) > previous_week_id.txt
+      - restore_cache:
+          keys:
+            - opam-ubuntu-<< parameters.ocaml_version >>-v1-{{ checksum "week_id.txt" }}
+            - opam-ubuntu-<< parameters.ocaml_version >>-v1-{{ checksum "previous_week_id.txt" }}
+      - run:
+          name: Install system dependencies
+          command: ./.circleci/setup-system
+      - run:
+          name: Install opam dependencies
+          command: ./.circleci/setup-opam
+      - save_cache:
+          key: opam-ubuntu-<< parameters.ocaml_version >>-v1-{{ checksum "week_id.txt" }}
+          paths:
+            - ~/.opam
+      - run:
+          name: Build
+          command: opam exec -- dune build
+      - run:
+          name: Test
+          command: opam exec -- dune runtest
+
+jobs:
+  linux_build:
+    docker:
+      - image: ocaml/opam:ubuntu-24.04-ocaml-5.4
+    working_directory: ~/ocamlgrep
+    steps:
+      - build:
+          ocaml_version: "5.4"
+
+  windows_build:
+    executor:
+      name: win/default
+    steps:
+      - run:
+          name: "Enable Git symlinks"
+          command: git config --global core.symlinks true
+
+      - checkout
+
+      - run:
+          name: Set weekly cache key segment
+          shell: bash.exe
+          command: |
+            echo $(( $(date +%s) / 604800 )) > week_id.txt
+            echo $(( $(date +%s) / 604800 - 1 )) > previous_week_id.txt
+
+      - restore_cache:
+          keys:
+            - opam-win-5.4.1-pkgs-v1-{{ checksum "week_id.txt" }}
+            - opam-win-5.4.1-pkgs-v1-{{ checksum "previous_week_id.txt" }}
+            - opam-win-5.4.1-v1
+
+      - run:
+          name: Install Opam
+          shell: bash.exe
+          command: |
+            url="https://github.com/ocaml/opam/releases/download/2.4.1/opam-2.4.1-x86_64-windows.exe"
+            dst="$HOME/AppData/Local/Microsoft/WindowsApps/opam"
+            curl -L "$url" -o "$dst"
+            opam --version
+
+      - run:
+          name: Set up OCaml and opam environment
+          shell: bash.exe
+          no_output_timeout: 30m
+          environment:
+            OPAMROOT: "C:\\Users\\circleci\\AppData\\Local\\opam"
+          command: |
+            if [[ -d ~/AppData/Local/opam ]]; then
+              echo "Using cached opam switch"
+            else
+              opam init --compiler=5.4.1 -y --debug
+            fi
+
+      - save_cache:
+          key: opam-win-5.4.1-v1
+          paths:
+            - ~/AppData/Local/opam
+
+      - run:
+          name: Install dependencies
+          shell: bash.exe
+          command: |
+            opam install ./ocamlgrep-lib.opam ./ocamlgrep.opam -y --deps-only --with-test
+
+      - save_cache:
+          key: opam-win-5.4.1-pkgs-v1-{{ checksum "week_id.txt" }}
+          paths:
+            - ~/AppData/Local/opam
+
+      - run:
+          name: Build
+          shell: bash.exe
+          command: opam exec -- dune build
+      - run:
+          name: Test
+          shell: bash.exe
+          command: opam exec -- dune runtest
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - linux_build
+      - windows_build

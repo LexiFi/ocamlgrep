@@ -1,6 +1,7 @@
 ; The library implementing the core of ocamlgrep without a CLI
 (library
- (public_name ocamlgrep)
+ (name ocamlgrep)
+ (public_name ocamlgrep-lib)
  (libraries
    compiler-libs.common
    unix

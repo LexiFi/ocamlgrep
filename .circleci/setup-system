@@ -1,0 +1,17 @@
+#! /usr/bin/env bash
+#
+# Install system packages required to build and test ocamlgrep (Ubuntu)
+#
+# This is used by the CI build.
+#
+set -eu
+
+sudo apt-get update
+
+###### Sanity checks ######
+
+echo 'check opam'
+opam --version
+
+echo 'check ocamlopt'
+opam exec -- ocamlopt -version

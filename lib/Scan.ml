@@ -17,6 +17,8 @@ type event =
   | Finding of finding
   | Warning of string
 
+let _test = [1; 2; 3]
+
 (* This is used to make a path relative to another.
    Similar to Fpath.relativize. *)
 let drop_prefix ~prefix s =

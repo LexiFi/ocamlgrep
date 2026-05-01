@@ -1,7 +1,8 @@
 ; ocamlgrep command-line interface (CLI)
 (executable
  (public_name ocamlgrep)
+ (package ocamlgrep)
  (libraries
-   ocamlgrep
+   ocamlgrep-lib
  )
 )
