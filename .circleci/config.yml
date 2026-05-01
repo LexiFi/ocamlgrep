@@ -52,11 +52,11 @@ commands:
 jobs:
   linux_build:
     docker:
-      - image: ocaml/opam:ubuntu-24.04-ocaml-5.4
+      - image: ocaml/opam:ubuntu-24.04-ocaml-5.2
     working_directory: ~/ocamlgrep
     steps:
       - build:
-          ocaml_version: "5.4"
+          ocaml_version: "5.2"
 
   windows_build:
     executor:
@@ -77,9 +77,9 @@ jobs:
 
       - restore_cache:
           keys:
-            - opam-win-5.4.1-pkgs-v1-{{ checksum "week_id.txt" }}
-            - opam-win-5.4.1-pkgs-v1-{{ checksum "previous_week_id.txt" }}
-            - opam-win-5.4.1-v1
+            - opam-win-5.2.1-pkgs-v1-{{ checksum "week_id.txt" }}
+            - opam-win-5.2.1-pkgs-v1-{{ checksum "previous_week_id.txt" }}
+            - opam-win-5.2.1-v1
 
       - run:
           name: Install Opam
@@ -100,11 +100,11 @@ jobs:
             if [[ -d ~/AppData/Local/opam ]]; then
               echo "Using cached opam switch"
             else
-              opam init --compiler=5.4.1 -y --debug
+              opam init --compiler=5.2.1 -y --debug
             fi
 
       - save_cache:
-          key: opam-win-5.4.1-v1
+          key: opam-win-5.2.1-v1
           paths:
             - ~/AppData/Local/opam
 
@@ -115,7 +115,7 @@ jobs:
             opam install ./ocamlgrep-lib.opam ./ocamlgrep.opam -y --deps-only --with-test
 
       - save_cache:
-          key: opam-win-5.4.1-pkgs-v1-{{ checksum "week_id.txt" }}
+          key: opam-win-5.2.1-pkgs-v1-{{ checksum "week_id.txt" }}
           paths:
             - ~/AppData/Local/opam
 
