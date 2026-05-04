@@ -8,3 +8,9 @@ build:
 .PHONY: demo
 demo: build
 	dune exec -- ocamlgrep '(__ : Location.t)'
+
+# Install opam dependencies
+.PHONY: setup
+setup:
+	opam install --deps-only --with-test --with-doc \
+	  ./ocamlgrep-lib.opam ./ocamlgrep.opam

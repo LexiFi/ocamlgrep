@@ -58,6 +58,10 @@ let check_wildcard_lid id lid =
   let e = Ast_helper.Exp.ident (mknoloc lid) in
   check_wildcard id e
 
+let match_equal equal a b =
+  if not (equal a b) then
+    raise DontMatch
+
 let try_match f x =
   let w = !wildcards in
   try f x; true
@@ -76,8 +80,8 @@ let rec path_matches_lident p l =
   match p, l with
   | _, Lident "__" ->
       true
-  | Path.Pdot (p0, s1), Ldot (l0, s2) when s1 = s2 || s2 = "__" ->
-      path_matches_lident p0 l0
+  | Path.Pdot (p0, s1), Ldot (l0, {txt=s2; _}) when s1 = s2 || s2 = "__" ->
+      path_matches_lident p0 l0.txt
   | Path.Pdot (_, s1), Lident s2 when s1 = s2 ->
       true  (* the longident can be a suffix of the path *)
   | Path.Pident id, Lident s ->
@@ -90,9 +94,10 @@ let rec constructor_match t p =
   | _, Lident "__" -> ()
   | _, Lident s when is_wildcard s -> check_wildcard_lid s t
   | Lident s1, Lident s2 when s1 = s2 -> ()
-  | Ldot (_, s1), Lident s2 when s1 = s2 -> () (* the ident can be a suffix *)
-  | Lident s1, Ldot (_, s2) when s1 = s2 -> ()
-  | Ldot (t, s1), Ldot (p, s2) when s1 = s2 -> constructor_match t p
+  | Ldot (_, {txt=s1; _}), Lident s2 when s1 = s2 -> () (* the ident can be a suffix *)
+  | Lident s1, Ldot (_, {txt=s2; _}) when s1 = s2 -> ()
+  | Ldot (t, s1), Ldot (p, s2) when s1.txt = s2.txt ->
+      constructor_match t.txt p.txt
   | _ -> raise DontMatch
 
 let remove_loc =
@@ -109,6 +114,17 @@ let match_opt f t p =
 let match_list f t p =
   if List.compare_lengths t p = 0 then List.iter2 f t p
   else raise DontMatch
+
+let match_string : string -> string -> unit = match_equal String.equal
+
+let match_label : string option -> string option -> unit =
+  match_opt match_string
+
+(* As of ocaml 5.4, labeled tuple expressions may not be reordered, so we
+   match each labeled pair in order and require the labels to agree. *)
+let match_labeled f (t_lbl, t) (p_lbl, p) =
+  match_label t_lbl p_lbl;
+  f t p
 
 let tconstant_equal_pconst tconst pconst =
   match Typecore.constant pconst with
@@ -133,8 +149,14 @@ let rec match_expr texpr (pexpr : Parsetree.expression) =
     when path_matches_lident path lid ->
       ()
 
-  | Texp_tuple texprs, Pexp_tuple pexprs
-  | Texp_array texprs, Pexp_array pexprs ->
+  | Texp_tuple texprs, Pexp_tuple pexprs ->
+      (* as of ocaml 5.4, labeled tuple expressions may not be reordered
+         so they must match as-is without sorting *)
+      match_list
+        (match_labeled match_expr)
+        texprs pexprs
+
+  | Texp_array (_, texprs), Pexp_array pexprs ->
       match_exprs texprs pexprs
 
   | Texp_constant tconst, Pexp_constant pconst when tconstant_equal_pconst tconst pconst ->
@@ -148,7 +170,7 @@ let rec match_expr texpr (pexpr : Parsetree.expression) =
             let pr = cstr = "PRESENT" in
             let rec loop = function
               | [] -> raise DontMatch
-              | (l, Some targ) :: targs when l = lab ->
+              | (l, Arg targ) :: targs when l = lab ->
                   if pr = targ.exp_loc.loc_ghost then raise DontMatch;
                   targs
               | x :: targs -> x :: loop targs
@@ -158,9 +180,9 @@ let rec match_expr texpr (pexpr : Parsetree.expression) =
         | (lab, parg) :: pargs ->
             let rec loop = function
               | [] -> raise DontMatch
-              | (l, Some targ) :: targs when l = lab ->
+              | (l, Arg targ) :: targs when l = lab ->
                   match_expr targ parg; targs
-              | (Asttypes.Optional _ as l, Some {exp_desc=Texp_construct({txt=Lident "Some"; _}, _, [targ]); _}) :: targs when l = lab ->
+              | (Asttypes.Optional _ as l, Arg {exp_desc=Texp_construct({txt=Lident "Some"; _}, _, [targ]); _}) :: targs when l = lab ->
                   match_expr targ parg; targs
               | x :: targs -> x :: loop targs
             in
@@ -176,6 +198,9 @@ let rec match_expr texpr (pexpr : Parsetree.expression) =
       | Some {pexp_desc = Pexp_ident {txt = Lident "__"; _}; _}, _ -> ()
       | None, [] -> ()
       | Some {pexp_desc = Pexp_tuple pexprs; _}, _ :: _ :: _ ->
+          (* The typed args of a constructor are an unlabeled list, so we
+             drop the labels of the parsetree tuple. *)
+          let pexprs = List.map snd pexprs in
           match_exprs texprs pexprs
       | Some pexpr, [ texpr ] -> match_expr texpr pexpr
       | _ -> raise DontMatch
@@ -184,11 +209,13 @@ let rec match_expr texpr (pexpr : Parsetree.expression) =
   | Texp_variant (tl, te), Pexp_variant (pl, pe) when tl = pl ->
       match_opt match_expr te pe
 
-  | Texp_match (te, tcases, _), Pexp_match (pe, pcases) ->
+  | Texp_match (te, tcases, _teffects, _), Pexp_match (pe, pcases) ->
+      (* TODO: split effects from the other cases in the parsetree *)
       match_expr te pe;
       match_cases tcases pcases
 
-  | Texp_try (te, tcases), Pexp_try (pe, pcases) ->
+  | Texp_try (te, tcases, _teffects), Pexp_try (pe, pcases) ->
+      (* TODO: split effects from the other cases in the parsetree *)
       match_expr te pe;
       match_cases tcases pcases
 
@@ -295,13 +322,21 @@ and match_pat : type k. k general_pattern -> _ -> _ = fun tpat ppat ->
   | Tpat_var (_, {txt = s1; _}, _), Ppat_var {txt = s2; _} when is_wildcard s2 ->
       check_wildcard_lid s2 (Lident s1)
   | Tpat_var (_, {txt = s1; _}, _), Ppat_var {txt = s2; _} when s1 = s2 -> ()
-  | Tpat_tuple tl, Ppat_tuple pl -> match_list match_pat tl pl
+  | Tpat_tuple tl, Ppat_tuple (pl, _closed_flag) ->
+      (* As of ocaml 5.4, both pattern tuples carry optional labels.
+         Match them in order, requiring labels to agree. We ignore the
+         closed_flag for now: a query of `(a, b)` will still match a typed
+         tuple of length 2. *)
+      match_list (match_labeled match_pat) tl pl
   | Tpat_constant tc, Ppat_constant pc when tconstant_equal_pconst tc pc -> ()
   | Tpat_construct (tcstr, _tconstr_desc, tpats, _), Ppat_construct (pcstr, ppat_opt) ->
       constructor_match tcstr.txt pcstr.txt;
       begin match ppat_opt, tpats with
       | None, [] -> ()
-      | Some (_, {ppat_desc = Ppat_tuple ppats; _}), _ :: _ :: _ ->
+      | Some (_, {ppat_desc = Ppat_tuple (ppats, _closed_flag); _}), _ :: _ :: _ ->
+          (* Typed constructor args are an unlabeled list, so drop the
+             labels from the parsetree tuple. *)
+          let ppats = List.map snd ppats in
           match_list match_pat tpats ppats
       | Some (_, ppat), [ tpat ] -> match_pat tpat ppat
       | _ -> raise DontMatch
@@ -322,7 +357,7 @@ and match_pat : type k. k general_pattern -> _ -> _ = fun tpat ppat ->
 and match_pat_expr : type k. k general_pattern -> _ -> _ = fun tpat pexpr ->
   match tpat.pat_desc, pexpr.pexp_desc with
   | Tpat_record (fields, _), Pexp_field ({pexp_desc = Pexp_ident {txt=Lident "__"; _}; _}, {txt = Lident s; _}) ->
-      if not (List.exists (fun (_, {Types.lbl_name; _}, _) -> lbl_name = s) fields) then
+      if not (List.exists (fun (_, {Data_types.lbl_name; _}, _) -> lbl_name = s) fields) then
         raise DontMatch
   | _ ->
       raise DontMatch
@@ -342,7 +377,7 @@ and match_value_binding
   match_expr vb_expr pvb_expr;
   match_pat vb_pat pvb_pat
 
-and match_case : type k. k case -> _ -> _ = fun {c_lhs; c_guard; c_rhs} {pc_lhs; pc_guard; pc_rhs} ->
+and match_case : type k. k case -> _ -> _ = fun {c_lhs; c_guard; c_rhs; _} {pc_lhs; pc_guard; pc_rhs} ->
   match_pat c_lhs pc_lhs;
   match_opt match_expr c_guard pc_guard;
   match_expr c_rhs pc_rhs
