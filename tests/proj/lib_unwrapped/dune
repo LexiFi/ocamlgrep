@@ -1,0 +1,6 @@
+(library
+ (name unwrapped)
+
+ ; Disable auto-wrapping into a supermodule
+ (wrapped false)
+)

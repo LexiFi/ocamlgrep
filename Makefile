@@ -1,13 +1,22 @@
+OCAMLGREP = _build/install/default/bin/ocamlgrep
 
 # Build the project.
-# '@check' is for producing cmt files so we can run ocamlgrep on its codebase.
 .PHONY: build
 build:
-	dune build @check
+	ln -sf $(OCAMLGREP) .
+	dune build app/ocamlgrep.exe
 
 .PHONY: demo
-demo: build
-	dune exec -- ocamlgrep '(__ : Location.t)'
+demo:
+	dune build @check
+	$(OCAMLGREP) '(__ : Location.t)'
+
+# This builds the test project(s) on which we run ocamlgrep.
+# '@check' is to ensure we build all the cmt files.
+.PHONY: test
+test:
+	dune build @check
+	$(OCAMLGREP) '__' --strict
 
 # Install opam dependencies
 .PHONY: setup

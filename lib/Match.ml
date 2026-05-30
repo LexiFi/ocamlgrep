@@ -354,12 +354,12 @@ and match_typ ptyp texpr =
       begin try Ctype.is_moregeneral env false typ texpr with
       | Assert_failure _ -> false
       end
-  | exception _ ->
-      begin match (ptyp.Parsetree.ptyp_desc, Types.get_desc texpr) with
+  | exception _ -> begin
+      match (ptyp.Parsetree.ptyp_desc, Types.get_desc texpr) with
       | ( Ptyp_constr ({ Location.txt; loc = _ }, pty_args),
           Tconstr (path, ty_args, _) ) ->
-          if path_matches_lident txt path then
-            begin match pty_args with
+          if path_matches_lident txt path then begin
+            match pty_args with
             | [
              {
                ptyp_desc =
@@ -372,7 +372,7 @@ and match_typ ptyp texpr =
                 if List.length ty_args = List.length pty_args then
                   List.for_all2 match_typ pty_args ty_args
                 else false
-            end
+          end
           else false
       | ( ( Ptyp_any | Ptyp_var _ | Ptyp_arrow _ | Ptyp_tuple _ | Ptyp_constr _
           | Ptyp_object _ | Ptyp_class _ | Ptyp_alias _ | Ptyp_variant _
@@ -381,7 +381,7 @@ and match_typ ptyp texpr =
           | Tnil | Tlink _ | Tsubst _ | Tvariant _ | Tunivar _ | Tpoly _
           | Tpackage _ ) ) ->
           false
-      end
+    end
 
 and match_pat : type k. _ -> k general_pattern -> _ =
  fun ppat tpat ->
@@ -507,20 +507,22 @@ let search_cmt query_expr cmt =
   end;
   List.sort Stdlib.compare !res
 
-let search query_expr cmt ~source ~src_lines =
-  let nb_lines = Array.length src_lines in
-  let with_fname (pos : Lexing.position) = { pos with pos_fname = source } in
+let read_lines path =
+  In_channel.with_open_text path In_channel.input_all
+  |> String.split_on_char '\n' |> Array.of_list
+
+let search ~make_valid_path query_expr cmt =
+  (* We can't assume a single source file because a preprocessed file
+     contains locations referring to more than one source file. *)
+  let get_file_lines = memoize (Hashtbl.create 10) read_lines in
   List.filter_map
-    (fun ({ Location.loc_start; loc_end; loc_ghost } : Location.t) ->
-      let s = max 1 (min nb_lines loc_start.pos_lnum) in
-      let e = max s (min nb_lines loc_end.pos_lnum) in
-      let lines = List.init (e - s + 1) (fun k -> src_lines.(s - 1 + k)) in
-      let loc =
-        {
-          Location.loc_start = with_fname loc_start;
-          loc_end = with_fname loc_end;
-          loc_ghost;
-        }
-      in
-      Some { loc; lines })
+    (fun ({ loc_start; loc_end; loc_ghost } as loc : Location.t) ->
+      if loc_ghost then None
+      else
+        let src_lines = get_file_lines (make_valid_path loc_start.pos_fname) in
+        let num_lines = Array.length src_lines in
+        let s = max 1 (min num_lines loc_start.pos_lnum) in
+        let e = max s (min num_lines loc_end.pos_lnum) in
+        let lines = List.init (e - s + 1) (fun k -> src_lines.(s - 1 + k)) in
+        Some { loc; lines })
     (search_cmt query_expr cmt)

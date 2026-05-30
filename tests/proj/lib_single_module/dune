@@ -1,0 +1,5 @@
+; Only the module matching the library name is exposed, the other modules
+; are hidden from the user.
+(library
+ (name single_module)
+)

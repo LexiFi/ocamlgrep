@@ -1,0 +1,20 @@
+(library
+ (name foo)
+ (libraries
+   menhirLib
+ )
+ (preprocess
+  (pps
+    ; ppx_something_unknown
+    ppx_deriving.show
+  )
+ )
+)
+
+; lexer.mll -> Lexer
+(ocamllex lexer)
+
+; parser.mly -> Parser
+(menhir
+ (modules parser)
+ (flags --table))

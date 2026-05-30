@@ -8,7 +8,7 @@
 
     Building all cmt files can be done with:
     {[
-    dune build @ check
+      dune build @ check
     ]}
     which is slightly faster than a full [dune build].
 
@@ -97,7 +97,7 @@ val describe :
   (t, string) result
 (** [describe ?context ?dirs ?root ()] runs
     {[
-    dune describe workspace -- format = csexp -- lang 0.1
+      dune describe workspace -- format = csexp -- lang 0.1
     ]}
     and parses the output.
 

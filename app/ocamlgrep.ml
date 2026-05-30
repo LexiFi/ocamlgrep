@@ -12,8 +12,9 @@
 *)
 
 open Printf
-open Ocamlgrep
 
+(* Configuration derived from command-line parsing *)
+type conf = { query : string; scan_root : string; debug : bool; strict : bool }
 type color = Yellow | Red | Green
 
 (* Colors are emitted unless the user opts out via the standard NO_COLOR env
@@ -37,7 +38,7 @@ let color c fmt =
 let warn msg = eprintf "%s: %s\n%!" (color Yellow "Warning") msg
 
 (* Highlight the substring [s.[lo..hi)] in red. Out-of-range indices
-   are clamped silently — a stale cmt could in principle produce them
+   are clamped silently - a stale cmt could in principle produce them
    even after the digest check, and crashing the renderer would be a
    poor failure mode. *)
 let highlight_range line lo hi =
@@ -63,14 +64,14 @@ let highlight_range line lo hi =
 
    The header is unambiguous so consecutive findings need no
    separator between them. *)
-let print_finding (f : Match.finding) =
-  let s = f.loc.Location.loc_start in
-  let e = f.loc.Location.loc_end in
-  let file = color Green "%s" s.Lexing.pos_fname in
-  let start_line = s.Lexing.pos_lnum in
-  let start_col = s.Lexing.pos_cnum - s.Lexing.pos_bol in
-  let end_line = e.Lexing.pos_lnum in
-  let end_col = e.Lexing.pos_cnum - e.Lexing.pos_bol in
+let print_finding (finding : Ocamlgrep.finding) =
+  let start = finding.loc.loc_start in
+  let end_ = finding.loc.loc_end in
+  let file = color Green "%s" start.Lexing.pos_fname in
+  let start_line = start.Lexing.pos_lnum in
+  let start_col = start.Lexing.pos_cnum - start.Lexing.pos_bol in
+  let end_line = end_.Lexing.pos_lnum in
+  let end_col = end_.Lexing.pos_cnum - end_.Lexing.pos_bol in
   let header =
     if start_line = end_line then
       sprintf "%s:%d:%d-%d:" file start_line start_col end_col
@@ -86,18 +87,24 @@ let print_finding (f : Match.finding) =
       printf "%s | %s\n"
         (color Yellow "%*d" gutter_width lineno)
         (highlight_range line lo hi))
-    f.lines;
+    finding.lines;
   (* Flush so streamed output is interleaved with stderr warnings in order. *)
   printf "%!"
 
-let handle_event (ev : Scan.event) =
+let handle_event ~has_finding ~has_warning (conf : conf) (ev : Ocamlgrep.event)
+    =
   match ev with
-  | Scan_file _path -> ()
-  | Warning msg -> warn msg
-  | Finding finding -> print_finding finding
+  | Scan_module module_ ->
+      if conf.debug then eprintf "scan module %s\n%!" module_
+  | Warning msg ->
+      has_warning := true;
+      warn msg
+  | Finding finding ->
+      has_finding := true;
+      print_finding finding
 
 let usage_msg =
-  {|Usage: ocamlgrep <pattern>
+  {|Usage: ocamlgrep <pattern> [scan_root]
 
 Search a Dune project for OCaml code matching a structural pattern.
 ocamlgrep walks the cmt files under _build/ and matches each typed
@@ -174,23 +181,59 @@ OCaml-compiler-style gutter:
 The matched range is highlighted in red unless the standard NO_COLOR
 environment variable is set (https://no-color.org/).
 
+Exit codes
+==========
+
+0: one or more matches were found
+1: no matches were found
+2: an error occurred, or a warning occurred in --strict mode
+
 Options
 =======|}
 
 let parse_argv () =
-  let query = ref None in
-  Arg.parse [] (fun s -> query := Some s) usage_msg;
-  match !query with
-  | None ->
-      Arg.usage [] usage_msg;
-      exit 1
-  | Some query -> query
+  let anon_args = ref [] in
+  let debug = ref false in
+  let strict = ref false in
+  let options =
+    [
+      ("--debug", Arg.Set debug, " print debugging information on stderr");
+      ( "--strict",
+        Arg.Set strict,
+        " exit with a nonzero code if there's any warning (see \"exit codes\")"
+      );
+    ]
+  in
+  Arg.parse options (fun arg -> anon_args := arg :: !anon_args) usage_msg;
+  let query, scan_root =
+    match List.rev !anon_args with
+    | [ query ] -> (query, ".")
+    | [ query; scan_root ] -> (query, scan_root)
+    | _ ->
+        Arg.usage [] usage_msg;
+        exit 1
+  in
+  { query; scan_root; debug = !debug; strict = !strict }
+
+(* Exit codes as documented in --help *)
+let exit_matched = 0
+let exit_no_match = 1
+let exit_error = 2
 
 let main () =
   try
-    let query = parse_argv () in
-    match Scan.incremental_search handle_event query with
-    | Ok () -> ()
+    let conf = parse_argv () in
+    let has_finding = ref false in
+    let has_warning = ref false in
+    match
+      Ocamlgrep.incremental_search ~debug:conf.debug ~scan_root:conf.scan_root
+        (handle_event ~has_finding ~has_warning conf)
+        conf.query
+    with
+    | Ok () ->
+        if conf.strict && !has_warning then exit exit_error
+        else if !has_finding then exit exit_matched
+        else exit exit_no_match
     | Error msg -> failwith msg
   with
   | exn ->
@@ -202,6 +245,6 @@ let main () =
         | exn -> Printexc.to_string exn
       in
       eprintf "%s: %s\n%!" (color Red "Error") s;
-      exit 1
+      exit exit_error
 
 let () = main ()

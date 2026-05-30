@@ -29,6 +29,10 @@
   ocaml
   (dune (>= 3.18))
   (ocamlgrep-lib (= :version))
+
+  ; Dependencies used for testing special build features
+  (menhir :with-test)
+  (ppx_deriving :with-test)
  )
  (maintenance_intent "(latest)")
 )

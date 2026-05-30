@@ -19,10 +19,10 @@
     {2 Examples}
 
     {[
-    List.filter __ __ (* all calls to List.filter *)
-      (__ : int list) (* all expressions of type int list *)
-      __1
-    :: __1 (* cons cells with same head and tail *)
+      List.filter __ __ (* all calls to List.filter *)
+        (__ : int list) (* all expressions of type int list *)
+        __1
+      :: __1 (* cons cells with same head and tail *)
     ]} *)
 
 exception Cannot_parse_type of exn
@@ -33,7 +33,6 @@ type finding = {
       (** Source lines spanned by [loc], from [loc_start.pos_lnum] to
           [loc_end.pos_lnum] inclusive. Always non-empty. *)
 }
-(** A region of source code that matched a query pattern. *)
 
 val parse_query : string -> Parsetree.expression
 (** [parse_query s] parses [s] as a single OCaml expression to be used as a
@@ -46,18 +45,17 @@ val search_cmt : Parsetree.expression -> Cmt_format.cmt_infos -> Location.t list
     [Cannot_parse_type]. *)
 
 val search :
+  make_valid_path:(string -> string) ->
   Parsetree.expression ->
   Cmt_format.cmt_infos ->
-  source:string ->
-  src_lines:string array ->
   finding list
-(** [search query cmt ~source ~src_lines] calls {!search_cmt} and converts each
-    location to a {!finding}, overriding [pos_fname] with [source] and clamping
-    line numbers to the file extent.
+(** same as [search_cmt] but extracts matching lines and puts them into the
+    'finding' record.
 
-    Partial application on [query] gives a function with the signature expected
-    by {!Scan.incremental_search}:
-    {[
-    let search_fn = Match.search expr in
-    Scan.incremental_search acc paths cmt_files handler search_fn
-    ]} *)
+    The [make_valid_path] function takes a source path as found in the locations
+    of the cmt file and make it a valid filesystem path.
+
+    In a Dune build, paths are relative to the build context (typically
+    [<root>/_build/default]). Since our current working directory is different,
+    we have to adjust the path to make it valid and successfully extract lines
+    from the file. *)

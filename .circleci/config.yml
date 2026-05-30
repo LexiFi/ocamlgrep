@@ -43,8 +43,11 @@ commands:
           name: Build
           command: opam exec -- dune build
       - run:
+          # Run the tests outside of Dune since we want to build the
+          # test project with Dune and scan it with ocamlgrep
+          # from outside the Dune build context.
           name: Test
-          command: opam exec -- dune runtest
+          command: opam exec -- make test
 
 jobs:
   linux_build:
@@ -120,10 +123,14 @@ jobs:
           name: Build
           shell: bash.exe
           command: opam exec -- dune build
+
       - run:
           name: Test
           shell: bash.exe
-          command: opam exec -- dune runtest
+          command: |
+            # Copied from the makefile (please keep it in sync and simple)
+            opam exec -- dune build @check
+            opam exec -- dune exec -- ocamlgrep '__' --strict
 
 workflows:
   version: 2
