@@ -53,3 +53,16 @@ When adding support for OCaml 5.5, we proceed as follows:
    testing. Optionally remove support for the oldest
    versions. Cherry-pick this change onto all version branches (see
    earlier section).
+
+### Releases
+
+A release consists in one `dune-release` flow per supported minor
+OCaml version. `dune-release` picks up the version to be released from
+the `CHANGES.md` file. Our repo is set up as follows:
+
+- at release time, each version branch should have the same `CHANGES.md`
+  except for the latest version to be released (topmost in the file).
+- releasing is done by checking out the branch and releasing it
+  using `dune-release` (`make opam-release` might just work - see
+  inside the makefile).
+
