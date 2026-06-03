@@ -16,7 +16,7 @@
  (name ocamlgrep-lib)
  (synopsis "OCaml structural grep library")
  (depends
-  (ocaml (and (>= 5.4) (< 5.5)))
+  (ocaml (and (>= 5.5) (< 5.6)))
   (dune (>= 3.18))
   csexp
  )
