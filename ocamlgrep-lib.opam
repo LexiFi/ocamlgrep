@@ -9,6 +9,7 @@ bug-reports: "https://github.com/LexiFi/ocamlgrep/issues"
 depends: [
   "ocaml" {>= "5.4" & < "5.5"}
   "dune" {>= "3.18" & >= "3.18"}
+  "csexp"
   "odoc" {with-doc}
 ]
 build: [

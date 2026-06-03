@@ -18,6 +18,7 @@
  (depends
   (ocaml (and (>= 5.4) (< 5.5)))
   (dune (>= 3.18))
+  csexp
  )
  (maintenance_intent "(latest)")
 )
