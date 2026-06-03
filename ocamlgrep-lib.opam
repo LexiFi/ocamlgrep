@@ -7,7 +7,7 @@ license: "MIT"
 homepage: "https://github.com/LexiFi/ocamlgrep"
 bug-reports: "https://github.com/LexiFi/ocamlgrep/issues"
 depends: [
-  "ocaml" {>= "5.4" & < "5.5"}
+  "ocaml" {>= "5.1" & < "5.2"}
   "dune" {>= "3.18" & >= "3.18"}
   "csexp"
   "odoc" {with-doc}
