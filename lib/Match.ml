@@ -211,13 +211,7 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
             check_all (loop targs) pargs
       in
       check_all targs pargs
-  | ( Pexp_function
-        ( [ { pparam_desc = Pparam_val (Nolabel, None, _); _ } ],
-          _,
-          Pfunction_cases (pcases, _, _) ),
-      Texp_function
-        ( [ { fp_arg_label = Nolabel; _ } ],
-          Tfunction_cases { cases = tcases; _ } ) ) ->
+  | Pexp_function pcases, Texp_function { cases = tcases; _ } ->
       match_cases pcases tcases
   | ( Pexp_construct (pcstr, pexpr_opt),
       Texp_construct (tcstr, _tconstr_desc, texprs) ) ->
@@ -312,7 +306,7 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
       match_expr pexpr2 texpr2;
       match_expr pexpr texpr
   | ( ( Pexp_ident _ | Pexp_constant _ | Pexp_let _ | Pexp_function _
-      | Pexp_apply _ | Pexp_match _ | Pexp_try _ | Pexp_tuple _
+      | Pexp_fun _ | Pexp_apply _ | Pexp_match _ | Pexp_try _ | Pexp_tuple _
       | Pexp_construct _ | Pexp_variant _ | Pexp_record _ | Pexp_field _
       | Pexp_setfield _ | Pexp_array _ | Pexp_ifthenelse _ | Pexp_sequence _
       | Pexp_while _ | Pexp_for _ | Pexp_coerce _ | Pexp_send _ | Pexp_new _
@@ -360,7 +354,7 @@ and match_typ ptyp texpr =
           else false
       | ( ( Ptyp_any | Ptyp_var _ | Ptyp_arrow _ | Ptyp_tuple _ | Ptyp_constr _
           | Ptyp_object _ | Ptyp_class _ | Ptyp_alias _ | Ptyp_variant _
-          | Ptyp_poly _ | Ptyp_package _ | Ptyp_open _ | Ptyp_extension _ ),
+          | Ptyp_poly _ | Ptyp_package _ | Ptyp_extension _ ),
           ( Tvar _ | Tarrow _ | Ttuple _ | Tconstr _ | Tobject _ | Tfield _
           | Tnil | Tlink _ | Tsubst _ | Tvariant _ | Tunivar _ | Tpoly _
           | Tpackage _ ) ) ->
@@ -372,10 +366,10 @@ and match_pat : type k. _ -> k general_pattern -> _ =
   match (ppat.ppat_desc, tpat.pat_desc) with
   | Ppat_any, Tpat_any -> ()
   | Ppat_var { txt = "__"; _ }, _ -> ()
-  | Ppat_var { txt = s2; _ }, Tpat_var (_, { txt = s1; _ }, _)
+  | Ppat_var { txt = s2; _ }, Tpat_var (_, { txt = s1; _ })
     when is_wildcard s2 ->
       check_wildcard_lid s2 (Lident s1)
-  | Ppat_var { txt = s2; _ }, Tpat_var (_, { txt = s1; _ }, _) when s1 = s2 ->
+  | Ppat_var { txt = s2; _ }, Tpat_var (_, { txt = s1; _ }) when s1 = s2 ->
       ()
   | Ppat_tuple pl, Tpat_tuple tl ->
       match_list match_pat pl tl
@@ -422,7 +416,7 @@ and match_pat_expr : type k. _ -> k general_pattern -> _ =
              fields)
       then raise DontMatch
   | ( ( Pexp_ident _ | Pexp_constant _ | Pexp_let _ | Pexp_function _
-      | Pexp_apply _ | Pexp_match _ | Pexp_try _ | Pexp_tuple _
+      | Pexp_fun _ | Pexp_apply _ | Pexp_match _ | Pexp_try _ | Pexp_tuple _
       | Pexp_construct _ | Pexp_variant _ | Pexp_record _ | Pexp_field _
       | Pexp_setfield _ | Pexp_array _ | Pexp_ifthenelse _ | Pexp_sequence _
       | Pexp_while _ | Pexp_for _ | Pexp_constraint _ | Pexp_coerce _
@@ -442,7 +436,7 @@ and match_value_bindings p t = match_set match_value_binding p t
 
 and match_value_binding
     { pvb_pat; pvb_expr; pvb_attributes = _; pvb_loc = _; pvb_constraint = _ }
-    { vb_pat; vb_expr; vb_attributes = _; vb_loc = _; vb_rec_kind = _ } =
+    { vb_pat; vb_expr; vb_attributes = _; vb_loc = _ } =
   match_expr pvb_expr vb_expr;
   match_pat pvb_pat vb_pat
 
