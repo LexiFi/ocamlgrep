@@ -26,20 +26,20 @@ setup:
 
 .PHONY: clean
 clean:
-         git clean -dfX
+	git clean -dfX
 
 # Update the opam files generated from 'dune-project'
 .PHONY: opam-files
 opam-files:
-        opam exec -- dune build *.opam
+	opam exec -- dune build *.opam
 
 # Attempt an automated release for the checked out branch.
 # This flow must run for each OCaml version branch (e.g. '504' for OCaml 5.4).
 # See VERSIONING.md for details.
 .PHONY: opam-release
 opam-release:
-        dune-release tag
-        dune-release distrib
-        dune-release publish
-        dune-release opam pkg
-        dune-release opam submit
+	dune-release tag
+	dune-release distrib
+	dune-release publish
+	dune-release opam pkg
+	dune-release opam submit
