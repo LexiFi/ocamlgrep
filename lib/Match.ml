@@ -232,10 +232,10 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
       end
   | Pexp_variant (pl, pe), Texp_variant (tl, te) when tl = pl ->
       match_opt match_expr pe te
-  | Pexp_match (pe, pcases), Texp_match (te, tcases, _teffects, _) ->
+  | Pexp_match (pe, pcases), Texp_match (te, tcases, _) ->
       match_expr pe te;
       match_cases pcases tcases
-  | Pexp_try (pe, pcases), Texp_try (te, tcases, _teffects) ->
+  | Pexp_try (pe, pcases), Texp_try (te, tcases) ->
       match_expr pe te;
       match_cases pcases tcases
   | Pexp_let (prf, pvb, pe), Texp_let (trf, tvb, te) when trf = prf ->
@@ -304,7 +304,7 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
           | Ppat_interval _ | Ppat_tuple _ | Ppat_construct _ | Ppat_variant _
           | Ppat_record _ | Ppat_array _ | Ppat_or _ | Ppat_constraint _
           | Ppat_type _ | Ppat_lazy _ | Ppat_unpack _ | Ppat_exception _
-          | Ppat_effect _ | Ppat_extension _ | Ppat_open _ ),
+          | Ppat_extension _ | Ppat_open _ ),
           _ ) ->
           raise DontMatch
       end;
@@ -404,7 +404,7 @@ and match_pat : type k. _ -> k general_pattern -> _ =
   | ( ( Ppat_any | Ppat_var _ | Ppat_alias _ | Ppat_constant _ | Ppat_interval _
       | Ppat_tuple _ | Ppat_construct _ | Ppat_variant _ | Ppat_record _
       | Ppat_array _ | Ppat_or _ | Ppat_type _ | Ppat_lazy _ | Ppat_unpack _
-      | Ppat_exception _ | Ppat_effect _ | Ppat_extension _ | Ppat_open _ ),
+      | Ppat_exception _ | Ppat_extension _ | Ppat_open _ ),
       _ ) ->
       raise DontMatch
 
