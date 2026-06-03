@@ -74,8 +74,6 @@ let check_wildcard_lid id lid =
   let e = Ast_helper.Exp.ident (mknoloc lid) in
   check_wildcard id e
 
-let match_equal equal a b = if not (equal a b) then raise DontMatch
-
 let try_match f x =
   let w = !wildcards in
   try
@@ -101,8 +99,8 @@ let match_set f ps ts =
 let rec path_matches_lident l p =
   match (l, p) with
   | Lident "__", _ -> true
-  | Ldot (l0, { txt = s2; _ }), Path.Pdot (p0, s1) when s1 = s2 || s2 = "__" ->
-      path_matches_lident l0.txt p0
+  | Ldot (l0, s2), Path.Pdot (p0, s1) when s1 = s2 || s2 = "__" ->
+      path_matches_lident l0 p0
   | Lident s2, Path.Pdot (_, s1) when s1 = s2 ->
       true (* the longident can be a suffix of the path *)
   | Lident s, Path.Pident id -> Ident.name id = s
@@ -115,11 +113,11 @@ let rec constructor_match p t =
   | Lident "__", _ -> ()
   | Lident s, _ when is_wildcard s -> check_wildcard_lid s t
   | Lident s2, Lident s1 when s1 = s2 -> ()
-  | Lident s2, Ldot (_, { txt = s1; _ }) when s1 = s2 ->
+  | Lident s2, Ldot (_, s1) when s1 = s2 ->
       () (* the ident can be a suffix *)
-  | Ldot (_, { txt = s2; _ }), Lident s1 when s1 = s2 -> ()
-  | Ldot (p, s2), Ldot (t, s1) when s1.txt = s2.txt ->
-      constructor_match p.txt t.txt
+  | Ldot (_, s2), Lident s1 when s1 = s2 -> ()
+  | Ldot (p, s2), Ldot (t, s1) when s1 = s2 ->
+      constructor_match p t
   | (Lident _ | Ldot _ | Lapply _), (Lident _ | Ldot _ | Lapply _) ->
       raise DontMatch
 
@@ -141,17 +139,6 @@ let match_opt f p t =
 
 let match_list f p t =
   if List.compare_lengths p t = 0 then List.iter2 f p t else raise DontMatch
-
-let match_string : string -> string -> unit = match_equal String.equal
-
-let match_label : string option -> string option -> unit =
-  match_opt match_string
-
-(* As of ocaml 5.4, labeled tuple expressions may not be reordered, so we
-   match each labeled pair in order and require the labels to agree. *)
-let match_labeled f (p_lbl, p) (t_lbl, t) =
-  match_label p_lbl t_lbl;
-  f p t
 
 let tconstant_equal_pconst tconst pconst =
   match Typecore.constant pconst with
@@ -176,10 +163,8 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
     when path_matches_lident lid path ->
       ()
   | Pexp_tuple pexprs, Texp_tuple texprs ->
-      (* as of ocaml 5.4, labeled tuple expressions may not be reordered
-         so they must match as-is without sorting *)
-      match_list (match_labeled match_expr) pexprs texprs
-  | Pexp_array pexprs, Texp_array (_, texprs) -> match_exprs pexprs texprs
+      match_exprs pexprs texprs
+  | Pexp_array pexprs, Texp_array texprs -> match_exprs pexprs texprs
   | Pexp_constant pconst, Texp_constant tconst
     when tconstant_equal_pconst tconst pconst ->
       ()
@@ -198,7 +183,7 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
             let pr = cstr = "PRESENT" in
             let rec loop = function
               | [] -> raise DontMatch
-              | (l, Arg targ) :: targs when l = lab ->
+              | (l, Some targ) :: targs when l = lab ->
                   if pr = targ.exp_loc.loc_ghost then raise DontMatch;
                   targs
               | x :: targs -> x :: loop targs
@@ -207,11 +192,11 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
         | (lab, parg) :: pargs ->
             let rec loop = function
               | [] -> raise DontMatch
-              | (l, Arg targ) :: targs when l = lab ->
+              | (l, Some targ) :: targs when l = lab ->
                   match_expr parg targ;
                   targs
               | ( (Asttypes.Optional _ as l),
-                  Arg
+                  Some
                     {
                       exp_desc =
                         Texp_construct ({ txt = Lident "Some"; _ }, _, [ targ ]);
@@ -241,7 +226,6 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
       | Some { pexp_desc = Pexp_ident { txt = Lident "__"; _ }; _ }, _ -> ()
       | None, [] -> ()
       | Some { pexp_desc = Pexp_tuple pexprs; _ }, _ :: _ :: _ ->
-          let pexprs = List.map snd pexprs in
           match_exprs pexprs texprs
       | Some pexpr, [ texpr ] -> match_expr pexpr texpr
       | _ -> raise DontMatch
@@ -338,7 +322,7 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
       | Pexp_letop _ | Pexp_extension _ | Pexp_unreachable ),
       ( Texp_ident _ | Texp_constant _ | Texp_let _ | Texp_function _
       | Texp_apply _ | Texp_match _ | Texp_try _ | Texp_tuple _
-      | Texp_construct _ | Texp_variant _ | Texp_record _ | Texp_atomic_loc _
+      | Texp_construct _ | Texp_variant _ | Texp_record _
       | Texp_field _ | Texp_setfield _ | Texp_array _ | Texp_ifthenelse _
       | Texp_sequence _ | Texp_while _ | Texp_for _ | Texp_send _ | Texp_new _
       | Texp_instvar _ | Texp_setinstvar _ | Texp_override _ | Texp_letmodule _
@@ -393,17 +377,16 @@ and match_pat : type k. _ -> k general_pattern -> _ =
       check_wildcard_lid s2 (Lident s1)
   | Ppat_var { txt = s2; _ }, Tpat_var (_, { txt = s1; _ }, _) when s1 = s2 ->
       ()
-  | Ppat_tuple (pl, _closed_flag), Tpat_tuple tl ->
-      match_list (match_labeled match_pat) pl tl
+  | Ppat_tuple pl, Tpat_tuple tl ->
+      match_list match_pat pl tl
   | Ppat_constant pc, Tpat_constant tc when tconstant_equal_pconst tc pc -> ()
   | ( Ppat_construct (pcstr, ppat_opt),
       Tpat_construct (tcstr, _tconstr_desc, tpats, _) ) ->
       constructor_match pcstr.txt tcstr.txt;
       begin match (ppat_opt, tpats) with
       | None, [] -> ()
-      | ( Some (_, { ppat_desc = Ppat_tuple (ppats, _closed_flag); _ }),
+      | ( Some (_, { ppat_desc = Ppat_tuple ppats; _ }),
           _ :: _ :: _ ) ->
-          let ppats = List.map snd ppats in
           match_list match_pat ppats tpats
       | Some (_, ppat), [ tpat ] -> match_pat ppat tpat
       | _ -> raise DontMatch
@@ -435,7 +418,7 @@ and match_pat_expr : type k. _ -> k general_pattern -> _ =
       if
         not
           (List.exists
-             (fun (_, { Data_types.lbl_name; _ }, _) -> lbl_name = s)
+             (fun (_, { Types.lbl_name; _ }, _) -> lbl_name = s)
              fields)
       then raise DontMatch
   | ( ( Pexp_ident _ | Pexp_constant _ | Pexp_let _ | Pexp_function _
