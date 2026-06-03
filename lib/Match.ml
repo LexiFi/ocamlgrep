@@ -23,6 +23,7 @@ let initial_env =
      in
      Typemod.initial_env
        ~loc:(Location.in_file "command line")
+       ~safe_string:true
        ~initially_opened_module
        ~open_implicit_modules:(List.rev !Clflags.open_modules))
 
@@ -104,7 +105,7 @@ let rec path_matches_lident l p =
   | Lident s2, Path.Pdot (_, s1) when s1 = s2 ->
       true (* the longident can be a suffix of the path *)
   | Lident s, Path.Pident id -> Ident.name id = s
-  | (Lident _ | Ldot _ | Lapply _), (Pident _ | Pdot _ | Papply _ | Pextra_ty _)
+  | (Lident _ | Ldot _ | Lapply _), (Pident _ | Pdot _ | Papply _)
     ->
       false
 
@@ -243,7 +244,7 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
   | Pexp_while (pe1, pe2), Texp_while (te1, te2) ->
       match_expr pe1 te1;
       match_expr pe2 te2
-  | Pexp_assert pe, Texp_assert (te, _)
+  | Pexp_assert pe, Texp_assert te
   | Pexp_lazy pe, Texp_lazy te ->
       match_expr pe te
   | Pexp_field (pexpr, pid), Texp_field (texpr, tid, _) ->
@@ -435,7 +436,7 @@ and match_cases : type k. _ -> k case list -> _ =
 and match_value_bindings p t = match_set match_value_binding p t
 
 and match_value_binding
-    { pvb_pat; pvb_expr; pvb_attributes = _; pvb_loc = _; pvb_constraint = _ }
+    { pvb_pat; pvb_expr; pvb_attributes = _; pvb_loc = _ }
     { vb_pat; vb_expr; vb_attributes = _; vb_loc = _ } =
   match_expr pvb_expr vb_expr;
   match_pat pvb_pat vb_pat
