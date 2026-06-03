@@ -332,26 +332,26 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
       | Pexp_construct _ | Pexp_variant _ | Pexp_record _ | Pexp_field _
       | Pexp_setfield _ | Pexp_array _ | Pexp_ifthenelse _ | Pexp_sequence _
       | Pexp_while _ | Pexp_for _ | Pexp_coerce _ | Pexp_send _ | Pexp_new _
-      | Pexp_setinstvar _ | Pexp_override _ | Pexp_letmodule _
-      | Pexp_letexception _ | Pexp_assert _ | Pexp_lazy _ | Pexp_poly _
-      | Pexp_object _ | Pexp_newtype _ | Pexp_pack _ | Pexp_open _
+      | Pexp_setinstvar _ | Pexp_override _ | Pexp_struct_item _
+      | Pexp_assert _ | Pexp_lazy _ | Pexp_poly _
+      | Pexp_object _ | Pexp_newtype _ | Pexp_pack _
       | Pexp_letop _ | Pexp_extension _ | Pexp_unreachable ),
       ( Texp_ident _ | Texp_constant _ | Texp_let _ | Texp_function _
       | Texp_apply _ | Texp_match _ | Texp_try _ | Texp_tuple _
       | Texp_construct _ | Texp_variant _ | Texp_record _ | Texp_atomic_loc _
       | Texp_field _ | Texp_setfield _ | Texp_array _ | Texp_ifthenelse _
       | Texp_sequence _ | Texp_while _ | Texp_for _ | Texp_send _ | Texp_new _
-      | Texp_instvar _ | Texp_setinstvar _ | Texp_override _ | Texp_letmodule _
-      | Texp_letexception _ | Texp_assert _ | Texp_lazy _ | Texp_object _
+      | Texp_instvar _ | Texp_setinstvar _ | Texp_override _ | Texp_struct_item _
+      | Texp_assert _ | Texp_lazy _ | Texp_object _
       | Texp_pack _ | Texp_letop _ | Texp_unreachable
-      | Texp_extension_constructor _ | Texp_open _ ) ) ->
+      | Texp_extension_constructor _ ) ) ->
       raise DontMatch
 
 and match_typ ptyp texpr =
   match parse_type ptyp with
   | typ ->
       let env = Lazy.force initial_env in
-      begin try Ctype.is_moregeneral env false typ texpr with
+      begin try Ctype.is_moregeneral env typ texpr with
       | Assert_failure _ -> false
       end
   | exception _ -> begin
@@ -376,10 +376,11 @@ and match_typ ptyp texpr =
           else false
       | ( ( Ptyp_any | Ptyp_var _ | Ptyp_arrow _ | Ptyp_tuple _ | Ptyp_constr _
           | Ptyp_object _ | Ptyp_class _ | Ptyp_alias _ | Ptyp_variant _
-          | Ptyp_poly _ | Ptyp_package _ | Ptyp_open _ | Ptyp_extension _ ),
+          | Ptyp_poly _ | Ptyp_package _ | Ptyp_open _ | Ptyp_extension _
+          | Ptyp_functor _ ),
           ( Tvar _ | Tarrow _ | Ttuple _ | Tconstr _ | Tobject _ | Tfield _
           | Tnil | Tlink _ | Tsubst _ | Tvariant _ | Tunivar _ | Tpoly _
-          | Tpackage _ ) ) ->
+          | Tpackage _ | Tfunctor _ ) ) ->
           false
     end
 
@@ -412,7 +413,7 @@ and match_pat : type k. _ -> k general_pattern -> _ =
       match_pat ppat tpat;
       let pt = parse_type pt in
       let env = Lazy.force initial_env in
-      let eq = Ctype.is_moregeneral env false pt tpat.pat_type in
+      let eq = Ctype.is_moregeneral env pt tpat.pat_type in
       if not eq then raise DontMatch
   | Ppat_or (p1, p2), Tpat_or (t1, t2, _) ->
       match_pat p1 t1;
@@ -444,8 +445,8 @@ and match_pat_expr : type k. _ -> k general_pattern -> _ =
       | Pexp_setfield _ | Pexp_array _ | Pexp_ifthenelse _ | Pexp_sequence _
       | Pexp_while _ | Pexp_for _ | Pexp_constraint _ | Pexp_coerce _
       | Pexp_send _ | Pexp_new _ | Pexp_setinstvar _ | Pexp_override _
-      | Pexp_letmodule _ | Pexp_letexception _ | Pexp_assert _ | Pexp_lazy _
-      | Pexp_poly _ | Pexp_object _ | Pexp_newtype _ | Pexp_pack _ | Pexp_open _
+      | Pexp_struct_item _ | Pexp_assert _ | Pexp_lazy _
+      | Pexp_poly _ | Pexp_object _ | Pexp_newtype _ | Pexp_pack _
       | Pexp_letop _ | Pexp_extension _ | Pexp_unreachable ),
       _ ) ->
       raise DontMatch

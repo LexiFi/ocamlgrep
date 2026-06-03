@@ -107,7 +107,7 @@ let absolute_build_path (workspace : Dune_workspace.t) in_project_path =
 
 let check_ml_digest ws ~cmt_path ~cmt_sourcefile ~cmt_source_digest =
   match
-    cmt_source_digest = Digest.file (absolute_build_path ws cmt_sourcefile)
+    cmt_source_digest = Digest.BLAKE128.file (absolute_build_path ws cmt_sourcefile)
   with
   | true -> Ok ()
   | false ->
