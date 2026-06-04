@@ -38,6 +38,8 @@ The standard flow for adding a new feature is:
    CI failures on the GitHub project page.
 4. Fix the branches that fail to build. This will likely involve
    changing to an Opam switch for the relevant OCaml version.
+5. Check the CI status of the version branches at
+   https://github.com/LexiFi/ocamlgrep/branches/all
 
 ### Upgrading the main branch to a new OCaml version
 
