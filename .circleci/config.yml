@@ -12,15 +12,15 @@
 # Version-specific settings. When updating the OCaml version or creating
 # a new version branch, only this section needs to be changed.
 x-versions:
-  linux-image: &linux-image "ocaml/opam:ubuntu-24.04-ocaml-5.5"
-  linux-ocaml: &linux-ocaml "5.5"
-  win-ocaml: &win-ocaml "5.5.0~beta1"
+  linux-image: &linux-image "ocaml/opam:ubuntu-24.04-ocaml-5.2"
+  linux-ocaml: &linux-ocaml "5.2"
+  win-ocaml: &win-ocaml "5.2.1"
   win-cache-restore-keys: &win-cache-restore-keys
-    - 'opam-win-5.5.0-pkgs-v1-{{ checksum "week_id.txt" }}'
-    - 'opam-win-5.5.0-pkgs-v1-{{ checksum "previous_week_id.txt" }}'
-    - 'opam-win-5.5.0-v1'
-  win-cache-ocaml-key: &win-cache-ocaml-key "opam-win-5.5.0-v1"
-  win-cache-pkgs-key: &win-cache-pkgs-key 'opam-win-5.5.0-pkgs-v1-{{ checksum "week_id.txt" }}'
+    - 'opam-win-5.2.1-pkgs-v1-{{ checksum "week_id.txt" }}'
+    - 'opam-win-5.2.1-pkgs-v1-{{ checksum "previous_week_id.txt" }}'
+    - 'opam-win-5.2.1-v1'
+  win-cache-ocaml-key: &win-cache-ocaml-key "opam-win-5.2.1-v1"
+  win-cache-pkgs-key: &win-cache-pkgs-key 'opam-win-5.2.1-pkgs-v1-{{ checksum "week_id.txt" }}'
 
 version: 2.1
 
