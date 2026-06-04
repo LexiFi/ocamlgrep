@@ -8,6 +8,20 @@
 # to another. For example, the name of the branch for ocaml 5.2.1 is
 # '502'.
 #
+
+# Version-specific settings. When updating the OCaml version or creating
+# a new version branch, only this section needs to be changed.
+x-versions:
+  linux-image: &linux-image "ocaml/opam:ubuntu-24.04-ocaml-5.5"
+  linux-ocaml: &linux-ocaml "5.5"
+  win-ocaml: &win-ocaml "5.5.0~beta1"
+  win-cache-restore-keys: &win-cache-restore-keys
+    - 'opam-win-5.5.0-pkgs-v1-{{ checksum "week_id.txt" }}'
+    - 'opam-win-5.5.0-pkgs-v1-{{ checksum "previous_week_id.txt" }}'
+    - 'opam-win-5.5.0-v1'
+  win-cache-ocaml-key: &win-cache-ocaml-key "opam-win-5.5.0-v1"
+  win-cache-pkgs-key: &win-cache-pkgs-key 'opam-win-5.5.0-pkgs-v1-{{ checksum "week_id.txt" }}'
+
 version: 2.1
 
 orbs:
@@ -52,11 +66,11 @@ commands:
 jobs:
   linux_build:
     docker:
-      - image: ocaml/opam:ubuntu-24.04-ocaml-5.4
+      - image: *linux-image
     working_directory: ~/ocamlgrep
     steps:
       - build:
-          ocaml_version: "5.4"
+          ocaml_version: *linux-ocaml
 
   windows_build:
     executor:
@@ -76,10 +90,7 @@ jobs:
             echo $(( $(date +%s) / 604800 - 1 )) > previous_week_id.txt
 
       - restore_cache:
-          keys:
-            - opam-win-5.4.1-pkgs-v1-{{ checksum "week_id.txt" }}
-            - opam-win-5.4.1-pkgs-v1-{{ checksum "previous_week_id.txt" }}
-            - opam-win-5.4.1-v1
+          keys: *win-cache-restore-keys
 
       - run:
           name: Install Opam
@@ -96,15 +107,16 @@ jobs:
           no_output_timeout: 30m
           environment:
             OPAMROOT: "C:\\Users\\circleci\\AppData\\Local\\opam"
+            OCAML_COMPILER: *win-ocaml
           command: |
             if [[ -d ~/AppData/Local/opam ]]; then
               echo "Using cached opam switch"
             else
-              opam init --compiler=5.4.1 -y --debug
+              opam init --compiler="$OCAML_COMPILER" -y --debug
             fi
 
       - save_cache:
-          key: opam-win-5.4.1-v1
+          key: *win-cache-ocaml-key
           paths:
             - ~/AppData/Local/opam
 
@@ -115,7 +127,7 @@ jobs:
             opam install ./ocamlgrep-lib.opam ./ocamlgrep.opam -y --deps-only --with-test
 
       - save_cache:
-          key: opam-win-5.4.1-pkgs-v1-{{ checksum "week_id.txt" }}
+          key: *win-cache-pkgs-key
           paths:
             - ~/AppData/Local/opam
 
