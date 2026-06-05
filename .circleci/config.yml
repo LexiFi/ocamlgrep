@@ -142,7 +142,8 @@ jobs:
           command: |
             # Copied from the makefile (please keep it in sync and simple)
             opam exec -- dune build @check
-            opam exec -- dune exec -- ocamlgrep '__' --strict
+            opam exec -- dune runtest
+            _build/default/tests/test.exe
 
 workflows:
   version: 2
