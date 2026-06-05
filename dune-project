@@ -34,6 +34,7 @@
   ; Dependencies used for testing special build features
   (menhir :with-test)
   (ppx_deriving :with-test)
+  (testo :with-test)
  )
  (maintenance_intent "(latest)")
 )
