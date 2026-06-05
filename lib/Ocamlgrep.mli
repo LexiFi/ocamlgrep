@@ -47,16 +47,21 @@ val search :
   ?scan_root:string ->
   string ->
   (finding list * string list, string) result
-(** [search ?root query] searches the Dune project rooted at [root] (or the
-    project containing the current directory if [root] is omitted) for OCaml
-    expressions matching the pattern [query].
+(** [search query] searches the project containing the current directory
+    for OCaml expressions matching the pattern [query].
 
     Returns [Ok ([], [])] immediately and silently if [root] is provided but
     does not contain a [dune-project] or [dune-workspace] file - this avoids
     creating a spurious [_build] directory.
 
     Returns [Ok (findings, warnings)] on success. Returns [Error message] for
-    user-facing errors such as a bad query or a missing dune project. *)
+    user-facing errors such as a bad query or a missing dune project.
+
+    @param root forces the use of this folder as Dune's root folder.
+    @param scan_root only scan this subtree which must be a folder or
+    or a source file from which the OCaml module name can be derived
+    by removing extensions and capitalization.
+*)
 
 val incremental_search :
   ?debug:bool ->
