@@ -13,83 +13,23 @@
 
 open Printf
 
-(* Configuration derived from command-line parsing *)
-type conf = { query : string; scan_root : string; debug : bool; strict : bool }
-type color = Yellow | Red | Green
+(* Configuration derived from command-line parsing and from environment
+   variables *)
+type conf = {
+  query : string;
+  scan_root : string;
+  debug : bool;
+  strict : bool;
+  use_color : bool
+}
 
 (* Colors are emitted unless the user opts out via the standard NO_COLOR env
    variable (https://no-color.org/). This keeps the snapshot tests readable
    without changing the default interactive behavior. *)
-let use_colors =
+let use_color () =
   match Sys.getenv_opt "NO_COLOR" with
   | Some s when s <> "" -> false
   | _ -> true
-
-let color c fmt =
-  if use_colors then
-    sprintf
-      ("\027[1;%dm" ^^ fmt ^^ "\027[0m")
-      (match c with
-      | Yellow -> 33
-      | Red -> 31
-      | Green -> 32)
-  else sprintf fmt
-
-let warn msg = eprintf "%s: %s\n%!" (color Yellow "Warning") msg
-
-(* Highlight the substring [s.[lo..hi)] in red. Out-of-range indices
-   are clamped silently - a stale cmt could in principle produce them
-   even after the digest check, and crashing the renderer would be a
-   poor failure mode. *)
-let highlight_range line lo hi =
-  let n = String.length line in
-  let lo = max 0 (min n lo) in
-  let hi = max lo (min n hi) in
-  if lo = hi then line
-  else
-    String.sub line 0 lo
-    ^ color Red "%s" (String.sub line lo (hi - lo))
-    ^ String.sub line hi (n - hi)
-
-(* Format A: a header line giving the precise location, followed by
-   the matched source lines with an OCaml-compiler-style [N |] gutter.
-
-       foo.ml:5:10-22:
-       5 |   let x = List.length xs
-
-       foo.ml:6:10-8:9:
-       6 |   let y =
-       7 |     foo bar
-       8 |       baz
-
-   The header is unambiguous so consecutive findings need no
-   separator between them. *)
-let print_finding (finding : Ocamlgrep.finding) =
-  let start = finding.loc.loc_start in
-  let end_ = finding.loc.loc_end in
-  let file = color Green "%s" start.Lexing.pos_fname in
-  let start_line = start.Lexing.pos_lnum in
-  let start_col = start.Lexing.pos_cnum - start.Lexing.pos_bol in
-  let end_line = end_.Lexing.pos_lnum in
-  let end_col = end_.Lexing.pos_cnum - end_.Lexing.pos_bol in
-  let header =
-    if start_line = end_line then
-      sprintf "%s:%d:%d-%d:" file start_line start_col end_col
-    else sprintf "%s:%d:%d-%d:%d:" file start_line start_col end_line end_col
-  in
-  print_endline header;
-  let gutter_width = String.length (string_of_int end_line) in
-  List.iteri
-    (fun i line ->
-      let lineno = start_line + i in
-      let lo = if lineno = start_line then start_col else 0 in
-      let hi = if lineno = end_line then end_col else String.length line in
-      printf "%s | %s\n"
-        (color Yellow "%*d" gutter_width lineno)
-        (highlight_range line lo hi))
-    finding.lines;
-  (* Flush so streamed output is interleaved with stderr warnings in order. *)
-  printf "%!"
 
 let handle_event ~has_finding ~has_warning (conf : conf) (ev : Ocamlgrep.event)
     =
@@ -98,10 +38,10 @@ let handle_event ~has_finding ~has_warning (conf : conf) (ev : Ocamlgrep.event)
       if conf.debug then eprintf "scan module %s\n%!" module_
   | Warning msg ->
       has_warning := true;
-      warn msg
+      Ocamlgrep.warn ~use_color:conf.use_color msg
   | Finding finding ->
       has_finding := true;
-      print_finding finding
+      printf "%s%!" (Ocamlgrep.show_finding ~use_color:conf.use_color finding)
 
 let usage_msg =
   {|Usage: ocamlgrep <pattern> [scan_root]
@@ -213,7 +153,7 @@ let parse_argv () =
         Arg.usage [] usage_msg;
         exit 1
   in
-  { query; scan_root; debug = !debug; strict = !strict }
+  { query; scan_root; debug = !debug; strict = !strict; use_color = use_color () }
 
 (* Exit codes as documented in --help *)
 let exit_matched = 0
@@ -237,14 +177,14 @@ let main () =
     | Error msg -> failwith msg
   with
   | exn ->
-      let s =
+      let msg =
         match exn with
         | Failure s
         | Sys_error s ->
             s
         | exn -> Printexc.to_string exn
       in
-      eprintf "%s: %s\n%!" (color Red "Error") s;
+      Ocamlgrep.error ~use_color:(use_color ()) msg;
       exit exit_error
 
 let () = main ()

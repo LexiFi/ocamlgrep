@@ -10,10 +10,38 @@ open Parsetree
 open Typedtree
 open Longident
 
+type finding = { loc : Location.t; lines : string list }
+
 exception Cannot_parse_type of exn
 
 (* private exception used to fail a match *)
 exception DontMatch
+
+(* Safe substring - doesn't raise Invalid_argument *)
+let substring str start_pos end_pos =
+  let start_pos = max 0 start_pos in
+  let end_pos = min (String.length str) end_pos in
+  if end_pos <= start_pos then ""
+  else String.sub str start_pos (end_pos - start_pos)
+
+let matched finding =
+  let start = finding.loc.loc_start in
+  let end_ = finding.loc.loc_end in
+  let start_col = start.pos_cnum - start.pos_bol in
+  let end_col = end_.pos_cnum - end_.pos_bol in
+  match finding.lines with
+  | [] -> []
+  | [line] ->
+      [substring line start_col end_col]
+  | first :: other ->
+      let first = substring first start_col max_int in
+      first :: (
+        match List.rev other with
+        | [] -> assert false
+        | last :: rev_other ->
+            let last = substring last 0 end_col in
+            List.rev (last :: rev_other)
+      )
 
 (* Equivalent of [Compmisc.initial_env ()] from upstream compiler-libs. *)
 let initial_env =
@@ -445,8 +473,6 @@ and match_case : type k. _ -> k case -> _ =
   match_pat pc_lhs c_lhs;
   match_opt match_expr pc_guard c_guard;
   match_expr pc_rhs c_rhs
-
-type finding = { loc : Location.t; lines : string list }
 
 let parse_query query =
   (* Use the standard compiler-libs parser; no merlin-specific lexer needed. *)

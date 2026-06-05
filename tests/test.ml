@@ -1,0 +1,76 @@
+(** Test suite
+
+   This is compiled into the test.exe executable.
+
+   The current directory is initially the repo root.
+*)
+
+open Printf
+
+type finding = Ocamlgrep.finding
+
+let print_findings findings =
+  List.iter (fun x -> eprintf "%s" (Ocamlgrep.show_finding x)) findings
+
+(**
+   To simplify maintenance, we check only the value of the lines
+   containing the finding. Specify a [check_details] function to test for
+   more.
+*)
+let test_ocamlgrep
+    ?(check_details = fun _finding -> true)
+    ?(scan_root = "tests/proj")
+    ?(tolerate_extra_findings = false)
+    name query expected_findings =
+  let test_func () =
+    eprintf "Query: %s\n" query;
+    eprintf "Scan root: %s\n" scan_root;
+    match Ocamlgrep.search ~scan_root query with
+    | Error msg -> Testo.fail msg
+    | Ok (findings, warnings) ->
+        eprintf "Findings:\n";
+        print_findings findings;
+        List.iter (fun msg -> Ocamlgrep.warn msg) warnings;
+        let remaining_findings =
+          List.fold_left (fun remaining_findings expected_finding ->
+            match
+              List.find_opt (fun (x : finding) ->
+                Ocamlgrep.matched x = expected_finding && check_details x)
+                remaining_findings
+            with
+            | None ->
+                Testo.fail
+                  ("missing finding:\n" ^ String.concat "\n" expected_finding)
+            | Some finding ->
+                List.filter ((!=) finding) remaining_findings
+          ) findings expected_findings
+        in
+        match remaining_findings with
+        | [] -> ()
+        | _ ->
+            if not tolerate_extra_findings then (
+              eprintf "We got unexpected extra findings:\n";
+              print_findings remaining_findings;
+              Testo.fail "unexpected extra findings"
+            )
+  in
+  Testo.create name test_func
+
+let tests _env = [
+  test_ocamlgrep "strings"
+    ~scan_root:"tests/proj/lib" "(__ : string)"
+    ~check_details:(fun (x : finding) ->
+      x.loc.loc_start.pos_fname = "tests/proj/lib/strings.ml"
+    )
+    ~tolerate_extra_findings:true
+    [
+      [ {|"a"|} ];
+      [ {|literal|} ];
+      [ {|"priv"|} ];
+    ];
+]
+
+let () =
+  Testo.interpret_argv
+    ~project_name:"ocamlgrep"
+    tests
