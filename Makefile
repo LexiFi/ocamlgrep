@@ -15,8 +15,10 @@ demo:
 # '@check' is to ensure we build all the cmt files.
 .PHONY: test
 test:
+	ln -sf _build/default/tests/test.exe test
 	dune build @check
-	$(OCAMLGREP) '__' --strict
+	dune runtest  # build the test executable
+	./test
 
 # Install opam dependencies
 .PHONY: setup
