@@ -34,6 +34,10 @@ type finding = {
           [loc_end.pos_lnum] inclusive. Always non-empty. *)
 }
 
+val matched : finding -> string list
+(** The matching lines where the leading matching bytes and
+    the trailing matching bytes were removed. *)
+
 val parse_query : string -> Parsetree.expression
 (** [parse_query s] parses [s] as a single OCaml expression to be used as a
     pattern. Raises [Failure] with a human-readable message if [s] is not a
