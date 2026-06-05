@@ -37,18 +37,6 @@ let ( let/ ) = Result.bind
 (* Safe file path concatenation - same behavior as Fpath.(//) *)
 let ( // ) a b = if Filename.is_relative b then Filename.concat a b else b
 
-let drop_prefix ~prefix s =
-  if String.starts_with ~prefix s then
-    String.sub s (String.length prefix) (String.length s - String.length prefix)
-  else s
-
-(* fragile implementation of Fpath.relativize where
-   both path are expected to be normalized such that they share a prefix:
-
-    relativize "a/b/" "a/b/c/d" -> "c/d"
-*)
-let _relativize root path = drop_prefix ~prefix:root path
-
 (* True when [dir] is the root of a Dune project.  We check for this before
    running 'dune describe workspace --root dir' to avoid creating a spurious
    _build directory in directories that are not Dune projects. *)
