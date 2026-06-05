@@ -21,6 +21,11 @@ type location = Location.t = {
 type finding = Match.finding = { loc : location; lines : string list }
 type event = Scan_module of string | Finding of finding | Warning of string
 
+let show_finding ?use_color x = Print.finding ?use_color x
+let matched finding = Match.matched finding
+let warn ?use_color msg = Print.warn ?use_color msg
+let error ?use_color msg = Print.error ?use_color msg
+
 (*
    This allows transparently unwrapping Ok values:
 

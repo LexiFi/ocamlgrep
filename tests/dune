@@ -1,0 +1,16 @@
+; Build the test executable like an ordinary OCaml executable
+(executable
+ (name test)
+ (libraries
+   testo
+   ocamlgrep-lib
+ )
+)
+
+; Build test.exe whenever @runtest is requested.
+; Note that we can't run ocamlgrep or the tests from within Dune so a
+; 'dune runtest' invocation will only build the test executable.
+(alias
+ (name runtest)
+ (deps test.exe)
+)
