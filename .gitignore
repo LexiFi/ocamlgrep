@@ -2,3 +2,7 @@ _build
 
 # Symlink to executable (some tools don't like broken links so we don't keep it in Git)
 /ocamlgrep
+
+# Symlink to the test executable
+/test
+

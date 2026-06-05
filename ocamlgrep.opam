@@ -12,6 +12,7 @@ depends: [
   "ocamlgrep-lib" {= version}
   "menhir" {with-test}
   "ppx_deriving" {with-test}
+  "testo" {with-test}
   "odoc" {with-doc}
 ]
 build: [

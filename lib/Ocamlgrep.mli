@@ -27,6 +27,20 @@ type event =
   | Finding of finding  (** a matching region was found *)
   | Warning of string  (** non-fatal diagnostic (e.g. missing cmt files) *)
 
+(** Format a finding into human-readable text.
+
+    @param use_color whether to emit ansiterm colors. Defaults to [true].
+*)
+val show_finding : ?use_color:bool -> finding -> string
+
+(**/**)
+val warn : ?use_color:bool -> string -> unit
+val error : ?use_color:bool -> string -> unit
+
+(* Extract the matching bytes from the list of matched lines (used in tests). *)
+val matched : finding -> string list
+(**/**)
+
 val search :
   ?debug:bool ->
   ?root:string ->
