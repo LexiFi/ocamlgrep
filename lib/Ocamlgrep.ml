@@ -21,6 +21,11 @@ type location = Location.t = {
 type finding = Match.finding = { loc : location; lines : string list }
 type event = Scan_module of string | Finding of finding | Warning of string
 
+let show_finding ?use_color x = Print.finding ?use_color x
+let matched finding = Match.matched finding
+let warn ?use_color msg = Print.warn ?use_color msg
+let error ?use_color msg = Print.error ?use_color msg
+
 (*
    This allows transparently unwrapping Ok values:
 
@@ -194,6 +199,30 @@ let process_one_cmt ?(debug = false) (workspace : Dune_workspace.t)
            msg);
       Error ()
 
+let init_load_path (workspace : Dune_workspace.t) =
+  let include_dirs =
+    (* All the directories that may contain cmi files for local libraries,
+       local executables, and external libraries used by the project.
+
+       TODO: instead of a project-wide init, run an init per local library
+       and per executable[s] to avoid confusion when two different
+       compilation units have the same name?
+    *)
+    List.flatten [
+      List.concat_map
+        (fun (lib : Dune_workspace.library) -> lib.include_dirs)
+        workspace.libraries;
+      List.concat_map
+        (fun (exe : Dune_workspace.executables) -> exe.include_dirs)
+        workspace.executables;
+      [Config.standard_library]
+    ]
+  in
+  Load_path.init
+    ~auto_include:Load_path.no_auto_include
+    ~visible:include_dirs
+    ~hidden:[]
+
 (** Generic incremental search. [search_fn] is called for each cmt file and
     should return a list of findings. [handle_event] accumulates state. *)
 let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
@@ -213,6 +242,7 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
         | Some dir -> Some [ dir ]
       in
       let/ workspace = Dune_workspace.describe ?root ?dirs () in
+      init_load_path workspace;
       let modules = Dune_workspace.get_modules workspace in
       let total = List.length modules in
       let successes =
