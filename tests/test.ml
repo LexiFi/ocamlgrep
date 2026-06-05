@@ -58,11 +58,7 @@ let test_ocamlgrep
 
 let tests _env = [
   test_ocamlgrep "strings"
-    ~scan_root:"tests/proj/lib" "(__ : string)"
-    ~check_details:(fun (x : finding) ->
-      x.loc.loc_start.pos_fname = "tests/proj/lib/strings.ml"
-    )
-    ~tolerate_extra_findings:true
+    ~scan_root:"tests/proj/lib/strings.ml" "(__ : string)"
     [
       [ {|"a"|} ];
       [ {|literal|} ];

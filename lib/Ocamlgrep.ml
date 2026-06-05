@@ -37,18 +37,6 @@ let ( let/ ) = Result.bind
 (* Safe file path concatenation - same behavior as Fpath.(//) *)
 let ( // ) a b = if Filename.is_relative b then Filename.concat a b else b
 
-let drop_prefix ~prefix s =
-  if String.starts_with ~prefix s then
-    String.sub s (String.length prefix) (String.length s - String.length prefix)
-  else s
-
-(* fragile implementation of Fpath.relativize where
-   both path are expected to be normalized such that they share a prefix:
-
-    relativize "a/b/" "a/b/c/d" -> "c/d"
-*)
-let _relativize root path = drop_prefix ~prefix:root path
-
 (* True when [dir] is the root of a Dune project.  We check for this before
    running 'dune describe workspace --root dir' to avoid creating a spurious
    _build directory in directories that are not Dune projects. *)
@@ -223,6 +211,22 @@ let init_load_path (workspace : Dune_workspace.t) =
     ~visible:include_dirs
     ~hidden:[]
 
+(* a.b.c -> a *)
+let rec chop_extensions path =
+  match Filename.extension path with
+  | "" -> path
+  | _ -> chop_extensions (Filename.chop_extension path)
+
+(* a/b.c/de.f.g -> De *)
+let module_name_of_path path =
+  path
+  |> Filename.basename
+  |> chop_extensions
+  |> String.capitalize_ascii
+
+let filter_modules_by_name name modules =
+  List.filter (fun (m : Dune_workspace.module_) -> m.name = name) modules
+
 (** Generic incremental search. [search_fn] is called for each cmt file and
     should return a list of findings. [handle_event] accumulates state. *)
 let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
@@ -236,14 +240,31 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
   match root with
   | Some r when not (is_dune_project_root r) -> Ok ()
   | _ ->
-      let dirs =
+      let module_name, dirs =
+        (* request as little as possible from Dune - but if our scan root
+           is a regular file, we have to pass its parent folder because
+           Dune won't take regular files.
+           Dune doesn't expose source files but we guess the module name
+           from the file name and hope for the best. For example,
+           "src/foo.mly" will query Dune for "src/" and we'll select
+           module "Foo" from the results *)
         match scan_root with
-        | None -> None
-        | Some dir -> Some [ dir ]
+        | None -> None, None
+        | Some path ->
+            if Sys.file_exists path && not (Sys.is_directory path) then
+              let module_name = module_name_of_path path in
+              Some module_name, None
+            else
+              None, Some [ Filename.dirname path ]
       in
       let/ workspace = Dune_workspace.describe ?root ?dirs () in
       init_load_path workspace;
       let modules = Dune_workspace.get_modules workspace in
+      let modules =
+        match module_name with
+        | None -> modules
+        | Some module_name -> filter_modules_by_name module_name modules
+      in
       let total = List.length modules in
       let successes =
         List.fold_left
