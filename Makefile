@@ -4,7 +4,7 @@ OCAMLGREP = _build/install/default/bin/ocamlgrep
 .PHONY: build
 build:
 	ln -sf $(OCAMLGREP) .
-	dune build app/ocamlgrep.exe
+	dune build @all @check
 
 .PHONY: demo
 demo:
