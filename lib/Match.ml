@@ -503,12 +503,10 @@ let parse_query query =
   try Parse.expression (Lexing.from_string query) with
   | _ -> failwith "Could not parse search expression."
 
-let search_cmt query_expr cmt =
-  let open Cmt_format in
+let search_cmt query_expr (cmt : Cmt_format.cmt_infos) =
   let res = ref [] in
-  let cmt_search =
-    let open Tast_iterator in
-    let super = default_iterator in
+  let cmt_search : Tast_iterator.iterator =
+    let super = Tast_iterator.default_iterator in
     let pat : type k. _ -> k general_pattern -> _ =
      fun self p ->
       try
@@ -528,8 +526,8 @@ let search_cmt query_expr cmt =
     { super with expr; pat }
   in
   begin match cmt.cmt_annots with
-  | Implementation str -> cmt_search.Tast_iterator.structure cmt_search str
-  | Interface sg -> cmt_search.Tast_iterator.signature cmt_search sg
+  | Implementation str -> cmt_search.structure cmt_search str
+  | Interface sg -> cmt_search.signature cmt_search sg
   | _ -> ()
   end;
   List.sort Stdlib.compare !res
