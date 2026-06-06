@@ -187,6 +187,7 @@ let process_one_cmt ?(debug = false) (workspace : Dune_workspace.t)
            msg);
       Error ()
 
+(* This initialization is needed to resolve type aliases. *)
 let init_load_path (workspace : Dune_workspace.t) =
   let include_dirs =
     (* All the directories that may contain cmi files for local libraries,
