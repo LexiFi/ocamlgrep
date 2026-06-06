@@ -41,6 +41,8 @@ The standard flow for adding a new feature is:
 5. Check the CI status of the version branches at
    https://github.com/LexiFi/ocamlgrep/branches/all
 
+Run `scripts/cherry-pick-help` for sample shell commands.
+
 ### Upgrading the main branch to a new OCaml version
 
 As soon as a new OCaml version is available from Opam, we should adopt
