@@ -54,7 +54,9 @@ let test_ocamlgrep
               Testo.fail "unexpected extra findings"
             )
   in
-  Testo.create name test_func
+  Testo.create
+    ~solo:"cannot run multiple 'dune describe workspace' commands in parallel"
+    name test_func
 
 let tests _env = [
   test_ocamlgrep "strings"
@@ -64,6 +66,12 @@ let tests _env = [
       [ {|literal|} ];
       [ {|"priv"|} ];
     ];
+  test_ocamlgrep "type alias baseline"
+    ~scan_root:"tests/proj/lib/alias_use.ml" "(__ : Alias_def.t)"
+    [ [ "x" ] ];
+  test_ocamlgrep "type alias"
+    ~scan_root:"tests/proj/lib/alias_use.ml" "(__ : string)"
+    [ [ "x" ] ];
 ]
 
 let () =
