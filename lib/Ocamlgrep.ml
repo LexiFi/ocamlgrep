@@ -209,8 +209,7 @@ let init_load_path (workspace : Dune_workspace.t) =
   in
   Load_path.init
     ~auto_include:Load_path.no_auto_include
-    ~visible:include_dirs
-    ~hidden:[]
+    include_dirs
 
 (* a.b.c -> a *)
 let rec chop_extensions path =
