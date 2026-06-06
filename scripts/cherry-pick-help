@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -eu
+
+version_branches="414 501 502 503 504"
+
+cat <<EOF
+Sample commands that you should edit to suit your needs
+=======================================================
+
+Cherry-pick the last commit
+---------------------------
+
+The commit to cherry-pick here is 'main' i.e. the last commit of the main
+branch:
+
+  for x in $version_branches; do echo "#### \$x"; git checkout "\$x" && git cherry-pick main || break; done
+
+In case of a conflict, resolve it and then edit the 'for ...' loop to skip
+the work you've already done.
+
+To cherry-pick multiple commits at once, specify multiple commit IDs
+on the command line. For example, to cherry-pick the last two commits, run:
+
+  for x in $version_branches; do echo "#### \$x"; git checkout "\$x" && git cherry-pick main~1 main || break; done
+
+Push all the version branches to GitHub
+---------------------------------------
+
+  for x in $version_branches; do echo "#### \$x"; git push origin "\$x" || break; done
+
+EOF
