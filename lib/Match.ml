@@ -43,16 +43,7 @@ let matched finding =
             List.rev (last :: rev_other)
       )
 
-(* Equivalent of [Compmisc.initial_env ()] from upstream compiler-libs. *)
-let initial_env =
-  lazy
-    (let initially_opened_module =
-       if !Clflags.nopervasives then None else Some "Stdlib"
-     in
-     Typemod.initial_env
-       ~loc:(Location.in_file "command line")
-       ~initially_opened_module
-       ~open_implicit_modules:(List.rev !Clflags.open_modules))
+let initial_env = lazy (Compmisc.initial_env ())
 
 let parse_type t =
   let env = Lazy.force initial_env in
