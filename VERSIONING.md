@@ -4,69 +4,42 @@ Ocamlgrep Versioning
 Versioning scheme
 -----------------
 
-Ocamlgrep relies on the `compiler-libs` library that changes
-frequently. To provide recent versions of Ocamlgrep for multiple
-versions of OCaml, we maintain one branch per supported OCaml version.
-For example, branch 502 is for OCaml 5.2. When releasing Ocamlgrep
-version 0.1.0, we release one tarball for each OCaml version:
-`ocamlgrep.0.1.0-414`, `ocamlgrep.0.1.0-500`, `ocamlgrep.0.1.0-501`, ...
-Each opam package adds a constraint on `ocaml` such as
-`"ocaml" {>= "5.3" & < "5.4"}` for `ocamlgrep.0.1.0-503`.
-This allows users to request installations of `ocamlgrep` or a
-`ocamlgrep.0.1.0` without having to worry about the compatibility with
-OCaml.
+Ocamlgrep relies on the `compiler-libs` library that changes between
+OCaml minor versions. To support multiple OCaml versions from a single
+branch, version-specific code is isolated using
+[cppo](https://github.com/ocaml-community/cppo), a C-preprocessor-like
+tool for OCaml source files.
+
+Source files that require version guards are named `*.ml.cppo` and use
+directives like:
+
+```ocaml
+#if OCAML_VERSION >= (5, 2, 0)
+  (* OCaml 5.2+ code *)
+#else
+  (* older code *)
+#endif
+```
+
+The CI runs on all supported minor versions of OCaml every time a
+commit is pushed to `main`.
 
 Maintenance
 -----------
 
-Each Git branch named after the OCaml version (e.g. `503` for OCaml
-5.3) is kept such that the difference with the main branch is minimal.
+All changes go to `main`. There are no version branches to maintain.
 
-### Feature propagation
+### Adding support for a new OCaml version
 
-When new features are added to the main branch via one or more new
-commits, these commits are cherry-picked onto each version branch.
+When a new OCaml version is released that changes `compiler-libs`:
 
-The standard flow for adding a new feature is:
-
-1. Review, approve, and merge pull request (squashed as one commit)
-   into `main`.
-2. For each version branch (e.g. `503`), cherry-pick the new commit(s)
-   from `main` using `git cherry-pick` if possible or some other means
-   and solve any conflicts.
-3. Push and let CI check that everything compiles and works. Look for
-   CI failures on the GitHub project page.
-4. Fix the branches that fail to build. This will likely involve
-   changing to an Opam switch for the relevant OCaml version.
-5. Check the CI status of the version branches at
-   https://github.com/LexiFi/ocamlgrep/branches/all
-
-Run `scripts/cherry-pick-help` for sample shell commands.
-
-### Upgrading the main branch to a new OCaml version
-
-As soon as a new OCaml version is available from Opam, we should adopt
-it as the default OCaml version, the version used by the main branch.
-
-When adding support for OCaml 5.5, we proceed as follows:
-
-1. Create persistent branch `504` as a copy of `main`.
-2. Make the necessary changes for the main branch to compile with OCaml
-   5.5 and pass the tests.
-3. Edit the CI config file(s) to declare the new OCaml version we're
-   testing. Optionally remove support for the oldest
-   versions. Cherry-pick this change onto all version branches (see
-   earlier section).
+1. Identify the API differences (diff typedtree.mli, parsetree.mli, etc.).
+2. Add cppo guards in `lib/*.ml.cppo` for the new version boundary.
+3. Add the new version to the matrix in `.circleci/config.yml`.
+4. Update the `(ocaml (>= ...))` constraint in `dune-project` if needed.
 
 ### Releases
 
-A release consists in one `dune-release` flow per supported minor
-OCaml version. `dune-release` picks up the version to be released from
-the `CHANGES.md` file. Our repo is set up as follows:
-
-- at release time, each version branch should have the same `CHANGES.md`
-  except for the latest version to be released (topmost in the file).
-- releasing is done by checking out the branch and releasing it
-  using `dune-release` (`make opam-release` might just work - see
-  inside the makefile).
-
+A release is a single `dune-release` flow on `main`. The opam package
+constraint `(ocaml (>= 4.14))` covers all supported versions without
+separate per-version packages.

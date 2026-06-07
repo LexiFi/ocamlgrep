@@ -16,8 +16,9 @@
  (name ocamlgrep-lib)
  (synopsis "OCaml structural grep library")
  (depends
-  (ocaml (and (>= 5.5) (< 5.6)))
+  (ocaml (>= 4.14))
   (dune (>= 3.18))
+  cppo
   csexp
  )
  (maintenance_intent "(latest)")
