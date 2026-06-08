@@ -93,7 +93,9 @@ let check_wildcard_lid id lid =
   let e = Ast_helper.Exp.ident (mknoloc lid) in
   check_wildcard id e
 
+#if OCAML_VERSION >= (5, 4, 0)
 let match_equal equal a b = if not (equal a b) then raise DontMatch
+#endif
 
 let try_match f x =
   let w = !wildcards in
@@ -120,13 +122,22 @@ let match_set f ps ts =
 let rec path_matches_lident l p =
   match (l, p) with
   | Lident "__", _ -> true
+#if OCAML_VERSION >= (5, 4, 0)
   | Ldot (l0, { txt = s2; _ }), Path.Pdot (p0, s1) when s1 = s2 || s2 = "__" ->
       path_matches_lident l0.txt p0
+#else
+  | Ldot (l0, s2), Path.Pdot (p0, s1) when s1 = s2 || s2 = "__" ->
+      path_matches_lident l0 p0
+#endif
   | Lident s2, Path.Pdot (_, s1) when s1 = s2 ->
       true (* the longident can be a suffix of the path *)
   | Lident s, Path.Pident id -> Ident.name id = s
-  | (Lident _ | Ldot _ | Lapply _), (Pident _ | Pdot _ | Papply _ | Pextra_ty _)
-    ->
+  | (Lident _ | Ldot _ | Lapply _),
+    (Pident _ | Pdot _ | Papply _
+#if OCAML_VERSION >= (5, 1, 0)
+    | Pextra_ty _
+#endif
+    ) ->
       false
 
 let rec constructor_match p t =
@@ -134,11 +145,19 @@ let rec constructor_match p t =
   | Lident "__", _ -> ()
   | Lident s, _ when is_wildcard s -> check_wildcard_lid s t
   | Lident s2, Lident s1 when s1 = s2 -> ()
+#if OCAML_VERSION >= (5, 4, 0)
   | Lident s2, Ldot (_, { txt = s1; _ }) when s1 = s2 ->
       () (* the ident can be a suffix *)
   | Ldot (_, { txt = s2; _ }), Lident s1 when s1 = s2 -> ()
   | Ldot (p, s2), Ldot (t, s1) when s1.txt = s2.txt ->
       constructor_match p.txt t.txt
+#else
+  | Lident s2, Ldot (_, s1) when s1 = s2 ->
+      () (* the ident can be a suffix *)
+  | Ldot (_, s2), Lident s1 when s1 = s2 -> ()
+  | Ldot (p, s2), Ldot (t, s1) when s1 = s2 ->
+      constructor_match p t
+#endif
   | (Lident _ | Ldot _ | Lapply _), (Lident _ | Ldot _ | Lapply _) ->
       raise DontMatch
 
@@ -161,6 +180,7 @@ let match_opt f p t =
 let match_list f p t =
   if List.compare_lengths p t = 0 then List.iter2 f p t else raise DontMatch
 
+#if OCAML_VERSION >= (5, 4, 0)
 let match_string : string -> string -> unit = match_equal String.equal
 
 let match_label : string option -> string option -> unit =
@@ -171,6 +191,7 @@ let match_label : string option -> string option -> unit =
 let match_labeled f (p_lbl, p) (t_lbl, t) =
   match_label p_lbl t_lbl;
   f p t
+#endif
 
 let tconstant_equal_pconst tconst pconst =
   match Typecore.constant pconst with
@@ -194,11 +215,17 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
   | Pexp_ident { txt = lid; _ }, Texp_ident (path, _, _)
     when path_matches_lident lid path ->
       ()
+#if OCAML_VERSION >= (5, 4, 0)
   | Pexp_tuple pexprs, Texp_tuple texprs ->
       (* as of ocaml 5.4, labeled tuple expressions may not be reordered
          so they must match as-is without sorting *)
       match_list (match_labeled match_expr) pexprs texprs
   | Pexp_array pexprs, Texp_array (_, texprs) -> match_exprs pexprs texprs
+#else
+  | Pexp_tuple pexprs, Texp_tuple texprs ->
+      match_exprs pexprs texprs
+  | Pexp_array pexprs, Texp_array texprs -> match_exprs pexprs texprs
+#endif
   | Pexp_constant pconst, Texp_constant tconst
     when tconstant_equal_pconst tconst pconst ->
       ()
@@ -217,7 +244,11 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
             let pr = cstr = "PRESENT" in
             let rec loop = function
               | [] -> raise DontMatch
+#if OCAML_VERSION >= (5, 4, 0)
               | (l, Arg targ) :: targs when l = lab ->
+#else
+              | (l, Some targ) :: targs when l = lab ->
+#endif
                   if pr = targ.exp_loc.loc_ghost then raise DontMatch;
                   targs
               | x :: targs -> x :: loop targs
@@ -226,11 +257,19 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
         | (lab, parg) :: pargs ->
             let rec loop = function
               | [] -> raise DontMatch
+#if OCAML_VERSION >= (5, 4, 0)
               | (l, Arg targ) :: targs when l = lab ->
+#else
+              | (l, Some targ) :: targs when l = lab ->
+#endif
                   match_expr parg targ;
                   targs
               | ( (Asttypes.Optional _ as l),
+#if OCAML_VERSION >= (5, 4, 0)
                   Arg
+#else
+                  Some
+#endif
                     {
                       exp_desc =
                         Texp_construct ({ txt = Lident "Some"; _ }, _, [ targ ]);
@@ -245,6 +284,7 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
             check_all (loop targs) pargs
       in
       check_all targs pargs
+#if OCAML_VERSION >= (5, 2, 0)
   | ( Pexp_function
         ( [ { pparam_desc = Pparam_val (Nolabel, None, _); _ } ],
           _,
@@ -253,6 +293,10 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
         ( [ { fp_arg_label = Nolabel; _ } ],
           Tfunction_cases { cases = tcases; _ } ) ) ->
       match_cases pcases tcases
+#else
+  | Pexp_function pcases, Texp_function { cases = tcases; _ } ->
+      match_cases pcases tcases
+#endif
   | ( Pexp_construct (pcstr, pexpr_opt),
       Texp_construct (tcstr, _tconstr_desc, texprs) ) ->
       constructor_match pcstr.txt tcstr.txt;
@@ -260,17 +304,27 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
       | Some { pexp_desc = Pexp_ident { txt = Lident "__"; _ }; _ }, _ -> ()
       | None, [] -> ()
       | Some { pexp_desc = Pexp_tuple pexprs; _ }, _ :: _ :: _ ->
+#if OCAML_VERSION >= (5, 4, 0)
           let pexprs = List.map snd pexprs in
+#endif
           match_exprs pexprs texprs
       | Some pexpr, [ texpr ] -> match_expr pexpr texpr
       | _ -> raise DontMatch
       end
   | Pexp_variant (pl, pe), Texp_variant (tl, te) when tl = pl ->
       match_opt match_expr pe te
+#if OCAML_VERSION >= (5, 3, 0)
   | Pexp_match (pe, pcases), Texp_match (te, tcases, _teffects, _) ->
+#else
+  | Pexp_match (pe, pcases), Texp_match (te, tcases, _) ->
+#endif
       match_expr pe te;
       match_cases pcases tcases
+#if OCAML_VERSION >= (5, 3, 0)
   | Pexp_try (pe, pcases), Texp_try (te, tcases, _teffects) ->
+#else
+  | Pexp_try (pe, pcases), Texp_try (te, tcases) ->
+#endif
       match_expr pe te;
       match_cases pcases tcases
   | Pexp_let (prf, pvb, pe), Texp_let (trf, tvb, te) when trf = prf ->
@@ -284,7 +338,11 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
   | Pexp_while (pe1, pe2), Texp_while (te1, te2) ->
       match_expr pe1 te1;
       match_expr pe2 te2
+#if OCAML_VERSION >= (5, 1, 0)
   | Pexp_assert pe, Texp_assert (te, _)
+#else
+  | Pexp_assert pe, Texp_assert te
+#endif
   | Pexp_lazy pe, Texp_lazy te ->
       match_expr pe te
   | Pexp_field (pexpr, pid), Texp_field (texpr, tid, _) ->
@@ -339,7 +397,10 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
           | Ppat_interval _ | Ppat_tuple _ | Ppat_construct _ | Ppat_variant _
           | Ppat_record _ | Ppat_array _ | Ppat_or _ | Ppat_constraint _
           | Ppat_type _ | Ppat_lazy _ | Ppat_unpack _ | Ppat_exception _
-          | Ppat_effect _ | Ppat_extension _ | Ppat_open _ ),
+#if OCAML_VERSION >= (5, 3, 0)
+          | Ppat_effect _
+#endif
+          | Ppat_extension _ | Ppat_open _ ),
           _ ) ->
           raise DontMatch
       end;
@@ -347,30 +408,54 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
       match_expr pexpr2 texpr2;
       match_expr pexpr texpr
   | ( ( Pexp_ident _ | Pexp_constant _ | Pexp_let _ | Pexp_function _
+#if OCAML_VERSION < (5, 2, 0)
+      | Pexp_fun _
+#endif
       | Pexp_apply _ | Pexp_match _ | Pexp_try _ | Pexp_tuple _
       | Pexp_construct _ | Pexp_variant _ | Pexp_record _ | Pexp_field _
       | Pexp_setfield _ | Pexp_array _ | Pexp_ifthenelse _ | Pexp_sequence _
       | Pexp_while _ | Pexp_for _ | Pexp_coerce _ | Pexp_send _ | Pexp_new _
-      | Pexp_setinstvar _ | Pexp_override _ | Pexp_struct_item _
+      | Pexp_setinstvar _ | Pexp_override _
+#if OCAML_VERSION >= (5, 5, 0)
+      | Pexp_struct_item _
+#else
+      | Pexp_letmodule _ | Pexp_letexception _ | Pexp_open _
+#endif
       | Pexp_assert _ | Pexp_lazy _ | Pexp_poly _
       | Pexp_object _ | Pexp_newtype _ | Pexp_pack _
       | Pexp_letop _ | Pexp_extension _ | Pexp_unreachable ),
       ( Texp_ident _ | Texp_constant _ | Texp_let _ | Texp_function _
       | Texp_apply _ | Texp_match _ | Texp_try _ | Texp_tuple _
-      | Texp_construct _ | Texp_variant _ | Texp_record _ | Texp_atomic_loc _
+      | Texp_construct _ | Texp_variant _ | Texp_record _
+#if OCAML_VERSION >= (5, 4, 0)
+      | Texp_atomic_loc _
+#endif
       | Texp_field _ | Texp_setfield _ | Texp_array _ | Texp_ifthenelse _
       | Texp_sequence _ | Texp_while _ | Texp_for _ | Texp_send _ | Texp_new _
-      | Texp_instvar _ | Texp_setinstvar _ | Texp_override _ | Texp_struct_item _
+      | Texp_instvar _ | Texp_setinstvar _ | Texp_override _
+#if OCAML_VERSION >= (5, 5, 0)
+      | Texp_struct_item _
+#else
+      | Texp_letmodule _ | Texp_letexception _
+#endif
       | Texp_assert _ | Texp_lazy _ | Texp_object _
       | Texp_pack _ | Texp_letop _ | Texp_unreachable
+#if OCAML_VERSION >= (5, 5, 0)
       | Texp_extension_constructor _ ) ) ->
+#else
+      | Texp_extension_constructor _ | Texp_open _ ) ) ->
+#endif
       raise DontMatch
 
 and match_typ ptyp texpr =
   match parse_type ptyp with
   | typ ->
       let env = Lazy.force initial_env in
+#if OCAML_VERSION >= (5, 5, 0)
       begin try Ctype.is_moregeneral env typ texpr with
+#else
+      begin try Ctype.is_moregeneral env false typ texpr with
+#endif
       | Assert_failure _ -> false
       end
   | exception _ -> begin
@@ -395,11 +480,21 @@ and match_typ ptyp texpr =
           else false
       | ( ( Ptyp_any | Ptyp_var _ | Ptyp_arrow _ | Ptyp_tuple _ | Ptyp_constr _
           | Ptyp_object _ | Ptyp_class _ | Ptyp_alias _ | Ptyp_variant _
-          | Ptyp_poly _ | Ptyp_package _ | Ptyp_open _ | Ptyp_extension _
-          | Ptyp_functor _ ),
+          | Ptyp_poly _ | Ptyp_package _ | Ptyp_extension _
+#if OCAML_VERSION >= (5, 2, 0)
+          | Ptyp_open _
+#endif
+#if OCAML_VERSION >= (5, 5, 0)
+          | Ptyp_functor _
+#endif
+          ),
           ( Tvar _ | Tarrow _ | Ttuple _ | Tconstr _ | Tobject _ | Tfield _
           | Tnil | Tlink _ | Tsubst _ | Tvariant _ | Tunivar _ | Tpoly _
+#if OCAML_VERSION >= (5, 5, 0)
           | Tpackage _ | Tfunctor _ ) ) ->
+#else
+          | Tpackage _ ) ) ->
+#endif
           false
     end
 
@@ -408,23 +503,42 @@ and match_pat : type k. _ -> k general_pattern -> _ =
   match (ppat.ppat_desc, tpat.pat_desc) with
   | Ppat_any, Tpat_any -> ()
   | Ppat_var { txt = "__"; _ }, _ -> ()
+#if OCAML_VERSION >= (5, 2, 0)
   | Ppat_var { txt = s2; _ }, Tpat_var (_, { txt = s1; _ }, _)
     when is_wildcard s2 ->
       check_wildcard_lid s2 (Lident s1)
   | Ppat_var { txt = s2; _ }, Tpat_var (_, { txt = s1; _ }, _) when s1 = s2 ->
       ()
+#else
+  | Ppat_var { txt = s2; _ }, Tpat_var (_, { txt = s1; _ })
+    when is_wildcard s2 ->
+      check_wildcard_lid s2 (Lident s1)
+  | Ppat_var { txt = s2; _ }, Tpat_var (_, { txt = s1; _ }) when s1 = s2 ->
+      ()
+#endif
+#if OCAML_VERSION >= (5, 4, 0)
   | Ppat_tuple (pl, _closed_flag), Tpat_tuple tl ->
       match_list (match_labeled match_pat) pl tl
+#else
+  | Ppat_tuple pl, Tpat_tuple tl ->
+      match_list match_pat pl tl
+#endif
   | Ppat_constant pc, Tpat_constant tc when tconstant_equal_pconst tc pc -> ()
   | ( Ppat_construct (pcstr, ppat_opt),
       Tpat_construct (tcstr, _tconstr_desc, tpats, _) ) ->
       constructor_match pcstr.txt tcstr.txt;
       begin match (ppat_opt, tpats) with
       | None, [] -> ()
+#if OCAML_VERSION >= (5, 4, 0)
       | ( Some (_, { ppat_desc = Ppat_tuple (ppats, _closed_flag); _ }),
           _ :: _ :: _ ) ->
           let ppats = List.map snd ppats in
           match_list match_pat ppats tpats
+#else
+      | ( Some (_, { ppat_desc = Ppat_tuple ppats; _ }),
+          _ :: _ :: _ ) ->
+          match_list match_pat ppats tpats
+#endif
       | Some (_, ppat), [ tpat ] -> match_pat ppat tpat
       | _ -> raise DontMatch
       end
@@ -432,7 +546,11 @@ and match_pat : type k. _ -> k general_pattern -> _ =
       match_pat ppat tpat;
       let pt = parse_type pt in
       let env = Lazy.force initial_env in
+#if OCAML_VERSION >= (5, 5, 0)
       let eq = Ctype.is_moregeneral env pt tpat.pat_type in
+#else
+      let eq = Ctype.is_moregeneral env false pt tpat.pat_type in
+#endif
       if not eq then raise DontMatch
   | Ppat_or (p1, p2), Tpat_or (t1, t2, _) ->
       match_pat p1 t1;
@@ -441,7 +559,11 @@ and match_pat : type k. _ -> k general_pattern -> _ =
   | ( ( Ppat_any | Ppat_var _ | Ppat_alias _ | Ppat_constant _ | Ppat_interval _
       | Ppat_tuple _ | Ppat_construct _ | Ppat_variant _ | Ppat_record _
       | Ppat_array _ | Ppat_or _ | Ppat_type _ | Ppat_lazy _ | Ppat_unpack _
-      | Ppat_exception _ | Ppat_effect _ | Ppat_extension _ | Ppat_open _ ),
+      | Ppat_exception _
+#if OCAML_VERSION >= (5, 3, 0)
+      | Ppat_effect _
+#endif
+      | Ppat_extension _ | Ppat_open _ ),
       _ ) ->
       raise DontMatch
 
@@ -455,16 +577,30 @@ and match_pat_expr : type k. _ -> k general_pattern -> _ =
       if
         not
           (List.exists
-             (fun (_, { Data_types.lbl_name; _ }, _) -> lbl_name = s)
+             (fun (_, {
+#if OCAML_VERSION >= (5, 4, 0)
+               Data_types.lbl_name;
+#else
+               Types.lbl_name;
+#endif
+               _ }, _) -> lbl_name = s)
              fields)
       then raise DontMatch
   | ( ( Pexp_ident _ | Pexp_constant _ | Pexp_let _ | Pexp_function _
+#if OCAML_VERSION < (5, 2, 0)
+      | Pexp_fun _
+#endif
       | Pexp_apply _ | Pexp_match _ | Pexp_try _ | Pexp_tuple _
       | Pexp_construct _ | Pexp_variant _ | Pexp_record _ | Pexp_field _
       | Pexp_setfield _ | Pexp_array _ | Pexp_ifthenelse _ | Pexp_sequence _
       | Pexp_while _ | Pexp_for _ | Pexp_constraint _ | Pexp_coerce _
       | Pexp_send _ | Pexp_new _ | Pexp_setinstvar _ | Pexp_override _
-      | Pexp_struct_item _ | Pexp_assert _ | Pexp_lazy _
+#if OCAML_VERSION >= (5, 5, 0)
+      | Pexp_struct_item _
+#else
+      | Pexp_letmodule _ | Pexp_letexception _ | Pexp_open _
+#endif
+      | Pexp_assert _ | Pexp_lazy _
       | Pexp_poly _ | Pexp_object _ | Pexp_newtype _ | Pexp_pack _
       | Pexp_letop _ | Pexp_extension _ | Pexp_unreachable ),
       _ ) ->
@@ -477,9 +613,7 @@ and match_cases : type k. _ -> k case list -> _ =
 
 and match_value_bindings p t = match_set match_value_binding p t
 
-and match_value_binding
-    { pvb_pat; pvb_expr; pvb_attributes = _; pvb_loc = _; pvb_constraint = _ }
-    { vb_pat; vb_expr; vb_attributes = _; vb_loc = _; vb_rec_kind = _ } =
+and match_value_binding { pvb_pat; pvb_expr; _ } { vb_pat; vb_expr; _ } =
   match_expr pvb_expr vb_expr;
   match_pat pvb_pat vb_pat
 

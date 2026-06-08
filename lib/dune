@@ -8,3 +8,13 @@
    unix
  )
 )
+
+(rule
+ (target Match.ml)
+ (deps Match.ml.cppo)
+ (action (run cppo -V OCAML:%{ocaml_version} %{deps} -o %{target})))
+
+(rule
+ (target Ocamlgrep.ml)
+ (deps Ocamlgrep.ml.cppo)
+ (action (run cppo -V OCAML:%{ocaml_version} %{deps} -o %{target})))

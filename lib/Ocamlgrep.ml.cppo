@@ -100,7 +100,11 @@ let absolute_build_path (workspace : Dune_workspace.t) in_project_path =
 
 let check_ml_digest ws ~cmt_path ~cmt_sourcefile ~cmt_source_digest =
   match
+#if OCAML_VERSION >= (5, 5, 0)
     cmt_source_digest = Digest.BLAKE128.file (absolute_build_path ws cmt_sourcefile)
+#else
+    cmt_source_digest = Digest.file (absolute_build_path ws cmt_sourcefile)
+#endif
   with
   | true -> Ok ()
   | false ->
@@ -207,10 +211,18 @@ let init_load_path (workspace : Dune_workspace.t) =
       [Config.standard_library]
     ]
   in
+#if OCAML_VERSION >= (5, 2, 0)
   Load_path.init
     ~auto_include:Load_path.no_auto_include
     ~visible:include_dirs
     ~hidden:[]
+#elif OCAML_VERSION >= (5, 1, 0)
+  Load_path.init
+    ~auto_include:Load_path.no_auto_include
+    include_dirs
+#else
+  Load_path.init include_dirs
+#endif
 
 (* a.b.c -> a *)
 let rec chop_extensions path =
