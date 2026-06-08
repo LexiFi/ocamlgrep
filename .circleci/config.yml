@@ -48,6 +48,52 @@ commands:
           command: opam exec -- make test
 
 jobs:
+  check_formatting:
+    docker:
+      - image: ocaml/opam:ubuntu-24.04-ocaml-5.5
+    working_directory: ~/ocamlgrep
+    steps:
+      - checkout
+      - run:
+          name: Set weekly cache key segment
+          command: |
+            echo $(( $(date +%s) / 604800 )) > week_id.txt
+            echo $(( $(date +%s) / 604800 - 1 )) > previous_week_id.txt
+      - restore_cache:
+          keys:
+            - opam-ubuntu-5.5-ocamlformat-v1-{{ checksum "week_id.txt" }}
+            - opam-ubuntu-5.5-ocamlformat-v1-{{ checksum "previous_week_id.txt" }}
+      - run:
+          name: Install ocamlformat
+          command: |
+            VERSION=$(grep '^version' .ocamlformat | sed 's/version = //')
+            opam install "ocamlformat.$VERSION" -y
+      - save_cache:
+          key: opam-ubuntu-5.5-ocamlformat-v1-{{ checksum "week_id.txt" }}
+          paths:
+            - ~/.opam
+      - run:
+          name: Install pre-commit
+          command: |
+            sudo apt-get update -qq
+            sudo apt-get install -y python3-pip
+            python3 -m pip install pre-commit --break-system-packages
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$BASH_ENV"
+      - run:
+          name: Check formatting
+          command: |
+            eval "$(opam env)"
+            pre-commit run -a
+      - run:
+          name: Hint
+          when: on_fail
+          command: |
+            echo ""
+            echo "Formatting check failed."
+            echo "1. Run 'make setup' to install the pre-commit hooks."
+            echo "2. Run 'pre-commit run -a' to reformat all files."
+            echo "3. Commit the result."
+
   linux_build:
     parameters:
       ocaml_version:
@@ -142,6 +188,7 @@ workflows:
   version: 2
   build:
     jobs:
+      - check_formatting
       - linux_build:
           matrix:
             parameters:
