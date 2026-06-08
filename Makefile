@@ -20,11 +20,20 @@ test:
 	dune runtest  # build the test executable
 	./test
 
-# Install opam dependencies
+OCAMLFORMAT_VERSION := $(shell grep '^version' .ocamlformat | sed 's/version = //')
+
+# Install all dependencies needed for development, including pre-commit hooks.
 .PHONY: setup
 setup:
+	@if ! command -v pre-commit >/dev/null 2>&1; then \
+	  echo "Error: pre-commit is not installed."; \
+	  echo "Install it from https://pre-commit.com/#install"; \
+	  exit 1; \
+	fi
 	opam install --deps-only --with-test --with-doc \
 	  ./ocamlgrep-lib.opam ./ocamlgrep.opam
+	opam install "ocamlformat.$(OCAMLFORMAT_VERSION)" -y
+	pre-commit install
 
 .PHONY: clean
 clean:

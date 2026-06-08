@@ -65,7 +65,9 @@ jobs:
             - opam-ubuntu-5.5-ocamlformat-v1-{{ checksum "previous_week_id.txt" }}
       - run:
           name: Install ocamlformat
-          command: opam install ocamlformat -y
+          command: |
+            VERSION=$(grep '^version' .ocamlformat | sed 's/version = //')
+            opam install "ocamlformat.$VERSION" -y
       - save_cache:
           key: opam-ubuntu-5.5-ocamlformat-v1-{{ checksum "week_id.txt" }}
           paths:
@@ -81,6 +83,13 @@ jobs:
           command: |
             eval "$(opam env)"
             pre-commit run -a
+      - run:
+          name: Hint
+          when: on_fail
+          command: |
+            echo ""
+            echo "Formatting check failed."
+            echo "Run 'make setup' to install the pre-commit hooks, then re-commit."
 
   linux_build:
     parameters:
