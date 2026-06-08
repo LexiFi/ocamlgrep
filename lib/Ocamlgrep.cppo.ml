@@ -182,13 +182,22 @@ let process_one_cmt ?(debug = false) (workspace : Dune_workspace.t)
   | { cmt_sourcefile = None; _ }
   | { cmt_source_digest = None; _ } ->
       Ok ()
-  | exception Cmt_format.Error (Cmt_format.Not_a_typedtree _) ->
-      warning (sprintf "error reading cmt file: %s" cmt_path);
-      Error ()
+  | exception Cmt_format.Error error ->
+      (match error with
+         | Cmt_format.Not_a_typedtree _filename ->
+            warning (sprintf "cannot read cmt file contents: %s" cmt_path);
+            Error ()
+      )
   | exception Sys_error msg ->
       warning
-        (sprintf "system error occurred while reading cmt file: %s: %s" cmt_path
+        (sprintf "system error occurred while reading cmt file: %s: %s"
+           cmt_path
            msg);
+      Error ()
+  | exception other ->
+      warning
+        (sprintf "unexpected error occurred while reading cmt file: %s: %s"
+           cmt_path (Printexc.to_string other));
       Error ()
 
 (* This initialization is needed to resolve type aliases. *)
@@ -251,7 +260,8 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
     | exception _ -> Error "Could not parse search expression."
   in
   match root with
-  | Some r when not (is_dune_project_root r) -> Ok ()
+  | Some root when not (is_dune_project_root root) ->
+      Error (sprintf "Not a Dune project root folder: %s" root)
   | _ ->
       let module_name, dirs =
         (* request as little as possible from Dune - but if our scan root
@@ -300,6 +310,12 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
                  successes total missing)));
       Ok ()
 
+type search_results = {
+  findings: finding list;
+  warnings: string list;
+  error: string option;
+}
+
 (* High-level search entry point for use by ocaml-lsp and similar tools. *)
 let search ?debug ?root ?scan_root query =
   let findings = ref [] in
@@ -309,5 +325,12 @@ let search ?debug ?root ?scan_root query =
     | Finding f -> findings := f :: !findings
     | Warning w -> warnings := w :: !warnings
   in
-  let/ () = incremental_search ?debug ?root ?scan_root handle_event query in
-  Ok (List.rev !findings, List.rev !warnings)
+  let res = incremental_search ?debug ?root ?scan_root handle_event query in
+  let findings = List.rev !findings in
+  let warnings = List.rev !warnings in
+  let error =
+    match res with
+    | Ok () -> None
+    | Error msg -> Some msg
+  in
+  { findings; warnings; error }

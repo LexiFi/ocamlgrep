@@ -9,12 +9,23 @@
  )
 )
 
+; chdir is essential to get correct source paths in the preprocessed output
 (rule
  (target Match.ml)
- (deps Match.ml.cppo)
- (action (run cppo -V OCAML:%{ocaml_version} %{deps} -o %{target})))
+ (deps Match.cppo.ml)
+ (action
+  (chdir %{workspace_root}
+   (run cppo -V OCAML:%{ocaml_version} %{deps} -o %{target})
+  )
+ )
+)
 
 (rule
  (target Ocamlgrep.ml)
- (deps Ocamlgrep.ml.cppo)
- (action (run cppo -V OCAML:%{ocaml_version} %{deps} -o %{target})))
+ (deps Ocamlgrep.cppo.ml)
+ (action
+  (chdir %{workspace_root}
+    (run cppo -V OCAML:%{ocaml_version} %{deps} -o %{target})
+  )
+ )
+)
