@@ -35,8 +35,8 @@ type finding = {
 }
 
 val matched : finding -> string list
-(** The matching lines where the leading matching bytes and
-    the trailing matching bytes were removed. *)
+(** The matching lines where the leading matching bytes and the trailing
+    matching bytes were removed. *)
 
 val parse_query : string -> Parsetree.expression
 (** [parse_query s] parses [s] as a single OCaml expression to be used as a

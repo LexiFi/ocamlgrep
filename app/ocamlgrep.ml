@@ -20,7 +20,7 @@ type conf = {
   scan_root : string;
   debug : bool;
   strict : bool;
-  use_color : bool
+  use_color : bool;
 }
 
 (* Colors are emitted unless the user opts out via the standard NO_COLOR env
@@ -153,7 +153,13 @@ let parse_argv () =
         Arg.usage [] usage_msg;
         exit 1
   in
-  { query; scan_root; debug = !debug; strict = !strict; use_color = use_color () }
+  {
+    query;
+    scan_root;
+    debug = !debug;
+    strict = !strict;
+    use_color = use_color ();
+  }
 
 (* Exit codes as documented in --help *)
 let exit_matched = 0
