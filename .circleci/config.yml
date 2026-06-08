@@ -90,7 +90,9 @@ jobs:
           command: |
             echo ""
             echo "Formatting check failed."
-            echo "Run 'make setup' to install the pre-commit hooks, then re-commit."
+            echo "1. Run 'make setup' to install the pre-commit hooks."
+            echo "2. Run 'pre-commit run -a' to reformat all files."
+            echo "3. Commit the result."
 
   linux_build:
     parameters:
