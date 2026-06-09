@@ -1,4 +1,4 @@
-(* Auto-generated from "Types.atd" by atdml. *)
+(* Auto-generated from "Export.atd" by atdml. *)
 [@@@ocaml.warning "-27-32-33-35-39"]
 
 (** Types used for the JSON export *)
@@ -209,7 +209,7 @@ type finding = {
   location: location;
   lines: string list;
   (**
-     lines extracted from the location info without end-of-line markers. This
+     lines extracted from the range info without end-of-line markers. This
      is redundant as long as the original file remains available.
   *)
 }
@@ -245,7 +245,7 @@ let finding_of_yojson (x : Yojson.Safe.t) : finding =
 
 let yojson_of_finding (x : finding) : Yojson.Safe.t =
   `Assoc (List.concat [
-    [(("location", yojson_of_location x.location))];
+    [("location", yojson_of_location x.location)];
     [("lines", (Atdml_runtime.Yojson.yojson_of_list Atdml_runtime.Yojson.yojson_of_string) x.lines)];
   ])
 

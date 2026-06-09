@@ -1,4 +1,4 @@
-(* Auto-generated from "Types.atd" by atdml. *)
+(* Auto-generated from "Export.atd" by atdml. *)
 
 (** Types used for the JSON export *)
 
@@ -48,7 +48,7 @@ type finding = {
   location: location;
   lines: string list;
   (**
-     lines extracted from the location info without end-of-line markers. This
+     lines extracted from the range info without end-of-line markers. This
      is redundant as long as the original file remains available.
   *)
 }
@@ -88,3 +88,4 @@ module Search_results : sig
   val of_json : string -> t
   val to_json : t -> string
 end
+
