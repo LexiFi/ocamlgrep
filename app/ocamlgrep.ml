@@ -13,12 +13,15 @@
 
 open Printf
 
+type output_format = Text | JSON
+
 (* Configuration derived from command-line parsing and from environment
    variables *)
 type conf = {
   query : string;
   scan_root : string option;
   debug : bool;
+  output_format : output_format;
   strict : bool;
   use_color : bool;
 }
@@ -134,14 +137,20 @@ Options
 let parse_argv () =
   let anon_args = ref [] in
   let debug = ref false in
+  let output_format = ref Text in
   let strict = ref false in
   let options =
     [
-      ("--debug", Arg.Set debug, " print debugging information on stderr");
-      ( "--strict",
-        Arg.Set strict,
-        " exit with a nonzero code if there's any warning (see \"exit codes\")"
-      );
+      "--debug", Arg.Set debug, " print debugging information on stderr";
+      "--strict",
+      Arg.Set strict,
+      " exit with a nonzero code if there's any warning (see \"exit codes\")";
+      "--format", Arg.String (function
+        | "json" -> output_format := JSON
+        | "text" -> output_format := Text
+        | str -> failwith (sprintf "Invalid argument for --format: %S" str)
+      ),
+      "{text|json}  how to output results, warnings, and errors";
     ]
   in
   Arg.parse options (fun arg -> anon_args := arg :: !anon_args) usage_msg;
@@ -157,6 +166,7 @@ let parse_argv () =
     query;
     scan_root;
     debug = !debug;
+    output_format = !output_format;
     strict = !strict;
     use_color = use_color ();
   }
@@ -169,18 +179,34 @@ let exit_error = 2
 let main () =
   try
     let conf = parse_argv () in
-    let has_finding = ref false in
-    let has_warning = ref false in
-    match
-      Ocamlgrep.incremental_search ~debug:conf.debug ?scan_root:conf.scan_root
-        (handle_event ~has_finding ~has_warning conf)
-        conf.query
-    with
-    | Ok () ->
-        if conf.strict && !has_warning then exit exit_error
-        else if !has_finding then exit exit_matched
+    match conf.output_format with
+    | Text ->
+        (* Incremental mode: results are shown as they come *)
+        let has_finding = ref false in
+        let has_warning = ref false in
+        (match
+           Ocamlgrep.incremental_search
+             ~debug:conf.debug ?scan_root:conf.scan_root
+             (handle_event ~has_finding ~has_warning conf)
+             conf.query
+         with
+         | Ok () ->
+             if conf.strict && !has_warning then exit exit_error
+             else if !has_finding then exit exit_matched
+             else exit exit_no_match
+         | Error msg -> failwith msg)
+    | JSON ->
+        (* doesn't support incremental results *)
+        let res =
+          Ocamlgrep.search
+            ~debug:conf.debug ?scan_root:conf.scan_root
+            conf.query
+        in
+        print_string (Ocamlgrep.to_json res);
+        flush stdout;
+        if conf.strict && res.warnings <> [] then exit exit_error
+        else if res.findings <> [] then exit exit_matched
         else exit exit_no_match
-    | Error msg -> failwith msg
   with
   | exn ->
       let msg =
