@@ -23,5 +23,5 @@ type finding = {
 type search_results = {
   findings : finding list;
   warnings : string list;
-  error : string option;
+  ?error : string option;
 }

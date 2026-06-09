@@ -1,4 +1,4 @@
-(* Auto-generated from "Export.atd" by atdml. *)
+(* Auto-generated from "export.atd" by atdml. *)
 
 (** Types used for the JSON export *)
 
@@ -74,7 +74,7 @@ type search_results = {
   error: string option;
 }
 
-val create_search_results : findings:finding list -> warnings:string list -> error:string option -> unit -> search_results
+val create_search_results : findings:finding list -> warnings:string list -> ?error:string -> unit -> search_results
 val search_results_of_yojson : Yojson.Safe.t -> search_results
 val yojson_of_search_results : search_results -> Yojson.Safe.t
 val search_results_of_json : string -> search_results
@@ -82,7 +82,7 @@ val json_of_search_results : search_results -> string
 
 module Search_results : sig
   type nonrec t = search_results
-  val create : findings:finding list -> warnings:string list -> error:string option -> unit -> t
+  val create : findings:finding list -> warnings:string list -> ?error:string -> unit -> t
   val of_yojson : Yojson.Safe.t -> t
   val to_yojson : t -> Yojson.Safe.t
   val of_json : string -> t

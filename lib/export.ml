@@ -1,4 +1,4 @@
-(* Auto-generated from "Export.atd" by atdml. *)
+(* Auto-generated from "export.atd" by atdml. *)
 [@@@ocaml.warning "-27-32-33-35-39"]
 
 (** Types used for the JSON export *)
@@ -270,7 +270,7 @@ type search_results = {
   error: string option;
 }
 
-let create_search_results ~findings ~warnings ~error () : search_results =
+let create_search_results ~findings ~warnings ?error () : search_results =
   { findings; warnings; error }
 
 let search_results_of_yojson (x : Yojson.Safe.t) : search_results =
@@ -298,8 +298,8 @@ let search_results_of_yojson (x : Yojson.Safe.t) : search_results =
     in
     let error =
       match assoc_ "error" with
-      | Some v -> (Atdml_runtime.Yojson.option_of_yojson Atdml_runtime.Yojson.string_of_yojson) v
-      | None -> Atdml_runtime.Yojson.missing_field "search_results" "error"
+      | None | Some `Null -> None
+      | Some v -> Some (Atdml_runtime.Yojson.string_of_yojson v)
     in
     { findings; warnings; error }
   | _ -> Atdml_runtime.Yojson.bad_type "search_results" x
@@ -308,7 +308,7 @@ let yojson_of_search_results (x : search_results) : Yojson.Safe.t =
   `Assoc (List.concat [
     [("findings", (Atdml_runtime.Yojson.yojson_of_list yojson_of_finding) x.findings)];
     [("warnings", (Atdml_runtime.Yojson.yojson_of_list Atdml_runtime.Yojson.yojson_of_string) x.warnings)];
-    [("error", (Atdml_runtime.Yojson.yojson_of_option Atdml_runtime.Yojson.yojson_of_string) x.error)];
+    (match x.error with None -> [] | Some v -> [("error", Atdml_runtime.Yojson.yojson_of_string v)]);
   ])
 
 let search_results_of_json s =
