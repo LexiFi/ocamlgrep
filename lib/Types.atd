@@ -1,0 +1,27 @@
+<doc text="Types used for the JSON export">
+
+type position <doc text="position in a file"> = {
+  row <doc text="zero-based line number"> : int;
+  column <doc text="zero-based byte offset in a line">: int;
+}
+
+type location = {
+  file : string;
+  start : position;
+  end_ <json name="end"> : position;
+}
+
+type finding = {
+  location : location;
+  lines
+    <doc text="lines extracted from the range info without end-of-line markers.
+               This is redundant as long as the original file remains
+               available."> :
+    string list;
+}
+
+type search_results = {
+  findings : finding list;
+  warnings : string list;
+  error : string option;
+}

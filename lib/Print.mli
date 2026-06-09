@@ -2,7 +2,7 @@
 
     These functions are used by the [ocamlgrep] command. *)
 
-val finding : ?use_color:bool -> Match.finding -> string
+val finding : ?use_color:bool -> Export.finding -> string
 (** Format a finding for to be human-readable. *)
 
 val warn : ?use_color:bool -> string -> unit

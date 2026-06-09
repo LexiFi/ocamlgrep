@@ -4,21 +4,28 @@
 
 open Printf
 
-(*
-   We reuse the location type defined by compiler-libs because there's no
-   reason to define it differently.
-
-   To expose a stable interface and make sure users of ocamlgrep-lib
-   don't depend on compiler-libs interfaces, the type equation
-   [location = Location.t] is omitted in the mli.
-*)
-type location = Location.t = {
-  loc_start : Lexing.position;
-  loc_end : Lexing.position;
-  loc_ghost : bool;
+type position = Export.position = {
+  row : int;
+  column : int;
 }
 
-type finding = Match.finding = { loc : location; lines : string list }
+type location = Export.location = {
+  file : string;
+  start : position;
+  end_ : position;
+}
+
+type finding = Export.finding = {
+  location : location;
+  lines : string list;
+}
+
+type search_results = Export.search_results = {
+  findings : finding list;
+  warnings : string list;
+  error : string option;
+}
+
 type event = Scan_module of string | Finding of finding | Warning of string
 
 let show_finding ?use_color x = Print.finding ?use_color x
@@ -397,12 +404,6 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
                  successes total missing)));
       Ok ()
 
-type search_results = {
-  findings: finding list;
-  warnings: string list;
-  error: string option;
-}
-
 (* High-level search entry point for use by ocaml-lsp and similar tools. *)
 let search ?debug ?root ?scan_root query =
   let findings = ref [] in
@@ -421,3 +422,5 @@ let search ?debug ?root ?scan_root query =
     | Error msg -> Some msg
   in
   { findings; warnings; error }
+
+let to_json = Export.Search_results.to_json

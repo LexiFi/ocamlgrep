@@ -12,6 +12,7 @@ depends: [
   "cppo"
   "csexp"
   "fpath"
+  "yojson"
   "odoc" {with-doc}
 ]
 build: [

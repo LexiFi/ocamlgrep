@@ -45,15 +45,14 @@ let highlight_range ~use_color line lo hi =
 
    The header is unambiguous so consecutive findings need no
    separator between them. *)
-let finding ?(use_color = true) (finding : Match.finding) =
+let finding ?(use_color = true) (finding : Export.finding) =
   let color c fmt = color ~use_color c fmt in
-  let start = finding.loc.loc_start in
-  let end_ = finding.loc.loc_end in
-  let file = color Green "%s" start.pos_fname in
-  let start_line = start.pos_lnum in
-  let start_col = start.pos_cnum - start.pos_bol in
-  let end_line = end_.pos_lnum in
-  let end_col = end_.pos_cnum - end_.pos_bol in
+  let loc = finding.location in
+  let file = color Green "%s" loc.file in
+  let start_line = loc.start.row + 1 in
+  let start_col = loc.start.column in
+  let end_line = loc.end_.row + 1 in
+  let end_col = loc.end_.column in
   let header =
     if start_line = end_line then
       sprintf "%s:%d:%d-%d:" file start_line start_col end_col

@@ -10,8 +10,6 @@ open Parsetree
 open Typedtree
 open Longident
 
-type finding = { loc : Location.t; lines : string list }
-
 exception Cannot_parse_type of exn
 
 (* private exception used to fail a match *)
@@ -24,11 +22,9 @@ let substring str start_pos end_pos =
   if end_pos <= start_pos then ""
   else String.sub str start_pos (end_pos - start_pos)
 
-let matched finding =
-  let start = finding.loc.loc_start in
-  let end_ = finding.loc.loc_end in
-  let start_col = start.pos_cnum - start.pos_bol in
-  let end_col = end_.pos_cnum - end_.pos_bol in
+let matched (finding : Export.finding) =
+  let start_col = finding.location.start.column in
+  let end_col = finding.location.end_.column in
   match finding.lines with
   | [] -> []
   | [line] ->
@@ -661,10 +657,20 @@ let read_lines path =
   In_channel.with_open_text path In_channel.input_all
   |> String.split_on_char '\n' |> Array.of_list
 
-let update_loc_path (loc : Location.t) path =
-  { loc with
-    loc_start = { loc.loc_start with pos_fname = path };
-    loc_end = { loc.loc_end with pos_fname = path } }
+let location_of_loc (loc : Location.t) source_path : Export.location =
+  {
+    file = source_path;
+    start =
+      {
+        row = loc.loc_start.pos_lnum - 1;
+        column = loc.loc_start.pos_cnum - loc.loc_start.pos_bol;
+      };
+    end_ =
+      {
+        row = loc.loc_end.pos_lnum - 1;
+        column = loc.loc_end.pos_cnum - loc.loc_end.pos_bol;
+      };
+  }
 
 let search ~make_valid_source_path query_expr cmt =
   (* We can't assume a single source file because a preprocessed file
@@ -674,14 +680,11 @@ let search ~make_valid_source_path query_expr cmt =
     (fun ({ loc_start; loc_end; loc_ghost } as loc : Location.t) ->
       if loc_ghost then None
       else
-        let source_path =
-          make_valid_source_path loc_start.pos_fname
-        in
-        let loc = update_loc_path loc source_path in
+        let source_path = make_valid_source_path loc_start.pos_fname in
         let src_lines = get_file_lines source_path in
         let num_lines = Array.length src_lines in
         let s = max 1 (min num_lines loc_start.pos_lnum) in
         let e = max s (min num_lines loc_end.pos_lnum) in
         let lines = List.init (e - s + 1) (fun k -> src_lines.(s - 1 + k)) in
-        Some { loc; lines })
+        Some { Export.location = location_of_loc loc source_path; lines })
     (search_cmt query_expr cmt)
