@@ -18,3 +18,14 @@
 (menhir
  (modules parser)
  (flags --table))
+
+; chdir is essential to get correct source paths in the preprocessed output
+(rule
+ (target cppo_test.ml)
+ (deps cppo_test.cppo.ml)
+ (action
+  (chdir %{workspace_root}
+   (run cppo -V OCAML:%{ocaml_version} %{deps} -o %{target})
+  )
+ )
+)

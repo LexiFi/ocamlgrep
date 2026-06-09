@@ -42,21 +42,16 @@ val matched : finding -> string list
 
 (**/**)
 
+type search_results = {
+  findings : finding list;
+  warnings : string list;
+  error : string option;  (** any error is fatal, unlike warnings *)
+}
+
 val search :
-  ?debug:bool ->
-  ?root:string ->
-  ?scan_root:string ->
-  string ->
-  (finding list * string list, string) result
+  ?debug:bool -> ?root:string -> ?scan_root:string -> string -> search_results
 (** [search query] searches the project containing the current directory for
     OCaml expressions matching the pattern [query].
-
-    Returns [Ok ([], [])] immediately and silently if [root] is provided but
-    does not contain a [dune-project] or [dune-workspace] file - this avoids
-    creating a spurious [_build] directory.
-
-    Returns [Ok (findings, warnings)] on success. Returns [Error message] for
-    user-facing errors such as a bad query or a missing dune project.
 
     @param root forces the use of this folder as Dune's root folder.
     @param scan_root

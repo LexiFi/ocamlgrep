@@ -1,9 +1,0 @@
-version = 0.28.1
-
-profile = conventional
-
-# Preserve begin/end or parentheses to group expressions.
-exp-grouping = preserve
-
-# ???
-break-cases = all
