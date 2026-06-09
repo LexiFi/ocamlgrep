@@ -9,6 +9,8 @@
 
 # Structural search of OCaml code
 
+[![CircleCI badge](https://circleci.com/gh/LexiFi/ocamlgrep.svg?style=svg)](https://app.circleci.com/pipelines/github/LexiFi/ocamlgrep)
+
 `ocamlgrep` is a command-line tool written at LexiFi to perform structural search
 of OCaml code.
 
