@@ -7,6 +7,7 @@
    csexp
    fpath
    unix
+   yojson
  )
 )
 

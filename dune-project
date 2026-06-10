@@ -21,6 +21,7 @@
   cppo
   csexp
   fpath
+  yojson
  )
  (maintenance_intent "(latest)")
 )

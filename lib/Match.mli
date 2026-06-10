@@ -27,14 +27,7 @@
 
 exception Cannot_parse_type of exn
 
-type finding = {
-  loc : Location.t;
-  lines : string list;
-      (** Source lines spanned by [loc], from [loc_start.pos_lnum] to
-          [loc_end.pos_lnum] inclusive. Always non-empty. *)
-}
-
-val matched : finding -> string list
+val matched : Export.finding -> string list
 (** The matching lines where the leading matching bytes and the trailing
     matching bytes were removed. *)
 
@@ -47,7 +40,7 @@ val search :
   make_valid_source_path:(string -> string) ->
   Parsetree.expression ->
   Cmt_format.cmt_infos ->
-  finding list
+  Export.finding list
 (** [search_cmt ~make_valid_source_path query cmt] scans the typed tree
     in [cmt] for sub-expressions matching [query] and returns matching
     locations. Matching lines are extracted from the source file.

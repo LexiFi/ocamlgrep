@@ -8,19 +8,30 @@
 
 (** Type-aware search for OCaml expression patterns. *)
 
+type position = {
+  row : int;
+  column : int;
+}
+
 type location = {
-  loc_start : Lexing.position;
-  loc_end : Lexing.position;
-  loc_ghost : bool;
+  file : string;
+  start : position;
+  end_ : position;
 }
 
 type finding = {
-  loc : location;
+  location : location;
   lines : string list;
       (** Source lines spanned by [loc], from [loc_start.pos_lnum] to
           [loc_end.pos_lnum] inclusive. Always non-empty. *)
 }
 (** A region of source code that matched a query pattern. *)
+
+type search_results = {
+  findings: finding list;
+  warnings: string list;
+  error: string option;
+}
 
 type event =
   | Scan_module of string  (** a source file is about to be scanned *)
@@ -42,12 +53,6 @@ val matched : finding -> string list
 
 (**/**)
 
-type search_results = {
-  findings : finding list;
-  warnings : string list;
-  error : string option;  (** any error is fatal, unlike warnings *)
-}
-
 val search :
   ?debug:bool -> ?root:string -> ?scan_root:string -> string -> search_results
 (** [search query] searches the project containing the current directory for
@@ -68,3 +73,6 @@ val incremental_search :
   (unit, string) result
 (** Same as [search] but lets the caller report findings and warnings as they
     come rather than waiting for the end of the scan. *)
+
+val to_json : search_results -> string
+(** JSON export *)
