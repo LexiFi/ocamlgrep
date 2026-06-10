@@ -117,7 +117,8 @@ val get_modules : t -> module_ list
 val filter_modules_under_dirs :
   t -> string list -> module_ list -> module_ list
 (** [filter_modules_under_dirs workspace dirs modules] returns only modules
-    that are located under one of the folders [dirs].
+    that are located under one of the folders [dirs]. [dirs] must be relative
+    paths.
 
     As of dune 3.22.2, [dune describe workspace ../lib] doesn't filter
     on ../lib as it's supposed to. This is a workaround where we do the

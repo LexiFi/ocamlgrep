@@ -234,13 +234,14 @@ let describe ?context ?dirs ?root () =
           Error
             (Printf.sprintf "dune describe workspace stopped by signal %d" n))
 
-let filter_modules_under_dirs (ws : t) dirs modules =
+let filter_modules_under_dirs (ws : t) rel_dirs modules =
   let proj_rel_dirs =
+    let cwd = Sys.getcwd () in
     let real_project_root = Unix.realpath ws.root in
     List.map (fun dir ->
-      let real_dir = Unix.realpath dir in
+      let real_dir = Filename.concat cwd dir in
       Filepath.relativize_dir ~root:real_project_root real_dir
-    ) dirs
+    ) rel_dirs
   in
   let filter_module (m : module_) =
     match m.impl with
