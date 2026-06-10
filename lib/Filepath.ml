@@ -6,7 +6,9 @@ open Printf
 
 let relativize ~root:a b =
   match Fpath.relativize ~root:(Fpath.v a) (Fpath.v b) with
-  | Some path -> Fpath.to_string path
+  | Some path ->
+      Fpath.rem_empty_seg path (* e.g. when getting "./" *)
+      |> Fpath.to_string
   | None ->
       (* the arguments must be both absolute paths or both relative paths *)
       ksprintf invalid_arg "internal error: relativize(%s, %s)" a b

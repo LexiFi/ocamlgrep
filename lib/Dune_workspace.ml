@@ -254,7 +254,10 @@ let filter_modules_under_dirs (ws : t) rel_dirs modules =
         List.exists (fun proj_rel_dir ->
           match proj_rel_dir with
           | "." -> (* ugly but works? *) true
-          | _ -> Filepath.is_prefix proj_rel_dir proj_rel_path
+          | _ ->
+              Printf.eprintf "proj_rel_dir: %s\n" proj_rel_dir;
+              Printf.eprintf "proj_rel_path: %s\n" proj_rel_path;
+              Filepath.is_prefix proj_rel_dir proj_rel_path
         ) proj_rel_dirs
   in
   List.filter filter_module modules
