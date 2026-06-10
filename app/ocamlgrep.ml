@@ -20,6 +20,7 @@ type output_format = Text | JSON
 type conf = {
   query : string;
   scan_root : string option;
+  chdir : string option;
   debug : bool;
   output_format : output_format;
   strict : bool;
@@ -136,21 +137,26 @@ Options
 
 let parse_argv () =
   let anon_args = ref [] in
+  let chdir = ref None in
   let debug = ref false in
   let output_format = ref Text in
   let strict = ref false in
+  let set_chdir = Arg.String (fun path -> chdir := Some path) in
   let options =
     [
+      "--chdir", set_chdir,
+      "DIR  change the current working directory to DIR before doing any work";
+      "-C", set_chdir, "DIR  same as --chdir";
       "--debug", Arg.Set debug, " print debugging information on stderr";
-      "--strict",
-      Arg.Set strict,
-      " exit with a nonzero code if there's any warning (see \"exit codes\")";
       "--format", Arg.String (function
         | "json" -> output_format := JSON
         | "text" -> output_format := Text
         | str -> failwith (sprintf "Invalid argument for --format: %S" str)
       ),
       "{text|json}  how to output results, warnings, and errors";
+      "--strict",
+      Arg.Set strict,
+      " exit with a nonzero code if there's any warning (see \"exit codes\")";
     ]
   in
   Arg.parse options (fun arg -> anon_args := arg :: !anon_args) usage_msg;
@@ -165,6 +171,7 @@ let parse_argv () =
   {
     query;
     scan_root;
+    chdir = !chdir;
     debug = !debug;
     output_format = !output_format;
     strict = !strict;
@@ -179,6 +186,10 @@ let exit_error = 2
 let main () =
   try
     let conf = parse_argv () in
+    (match conf.chdir with
+     | None -> ()
+     | Some dir -> Sys.chdir dir
+    );
     match conf.output_format with
     | Text ->
         (* Incremental mode: results are shown as they come *)
