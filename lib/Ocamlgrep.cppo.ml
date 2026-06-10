@@ -295,9 +295,12 @@ let convert_path_to_using_scan_root ~project_root ~opt_scan_root () =
     Filepath.relativize_dir ~root:real_project_root real_scan_root in
   fun proj_rel_path ->
     let scan_rel_path =
-      Filepath.relativize ~root:proj_rel_scan_root proj_rel_path in
+      Filepath.relativize_dir ~root:proj_rel_scan_root proj_rel_path in
     match opt_scan_root with
-    | Some scan_root -> Filename.concat scan_root scan_rel_path
+    | Some scan_root ->
+        (match scan_rel_path with
+         | "." -> scan_root
+         | _ -> Filename.concat scan_root scan_rel_path)
     | None -> scan_rel_path
 
 (* a.b.c -> a *)
@@ -343,7 +346,7 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
         | Some path ->
             if Sys.file_exists path && not (Sys.is_directory path) then
               let module_name = module_name_of_path path in
-              Some module_name, None
+              Some module_name, Some [ Filename.dirname path ]
             else
               None, Some [ path ]
       in
