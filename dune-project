@@ -20,6 +20,7 @@
   (dune (>= 3.18))
   cppo
   csexp
+  fpath
  )
  (maintenance_intent "(latest)")
 )

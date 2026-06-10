@@ -17,7 +17,7 @@ open Printf
    variables *)
 type conf = {
   query : string;
-  scan_root : string;
+  scan_root : string option;
   debug : bool;
   strict : bool;
   use_color : bool;
@@ -147,8 +147,8 @@ let parse_argv () =
   Arg.parse options (fun arg -> anon_args := arg :: !anon_args) usage_msg;
   let query, scan_root =
     match List.rev !anon_args with
-    | [ query ] -> (query, ".")
-    | [ query; scan_root ] -> (query, scan_root)
+    | [ query ] -> (query, None)
+    | [ query; scan_root ] -> (query, Some scan_root)
     | _ ->
         Arg.usage [] usage_msg;
         exit 1
@@ -172,7 +172,7 @@ let main () =
     let has_finding = ref false in
     let has_warning = ref false in
     match
-      Ocamlgrep.incremental_search ~debug:conf.debug ~scan_root:conf.scan_root
+      Ocamlgrep.incremental_search ~debug:conf.debug ?scan_root:conf.scan_root
         (handle_event ~has_finding ~has_warning conf)
         conf.query
     with

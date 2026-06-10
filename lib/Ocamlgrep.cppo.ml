@@ -142,8 +142,12 @@ let resolve_cmt (workspace : Dune_workspace.t) ~cmt_path ~cmt_sourcefile
    Paths are kept relative to the workspace root as much as possible,
    converted only to valid file system paths when accessing the files.
 *)
-let process_one_cmt ?(debug = false) (workspace : Dune_workspace.t)
-    (module_ : Dune_workspace.module_) handle_event query : (unit, unit) result
+let process_one_cmt
+    ?(debug = false)
+    ~make_valid_source_path
+    (workspace : Dune_workspace.t)
+    (module_ : Dune_workspace.module_)
+    handle_event query : (unit, unit) result
     =
   let warning msg = handle_event (Warning msg) in
   let/ cmt_path =
@@ -169,7 +173,7 @@ let process_one_cmt ?(debug = false) (workspace : Dune_workspace.t)
       in
       handle_event (Scan_module module_.name);
       match
-        Match.search ~make_valid_path:(absolute_build_path workspace) query cmt
+        Match.search ~make_valid_source_path query cmt
       with
       | exception exn ->
           warning
@@ -233,6 +237,69 @@ let init_load_path (workspace : Dune_workspace.t) =
   Load_path.init include_dirs
 #endif
 
+(*
+   Convert a path relative to the project root (or to the Dune context
+   folder which includes a copy of the source project) into a valid path that
+   starts with the scan root if a scan root is provided.
+
+   Constraints:
+   - scan_root is a valid path (indicating a subtree that was scanned)
+   - project_root is a valid path to the project root
+   - proj_rel_path is the target path that is relative to the project root
+     (or equivalently to the build context) that we want to turn into
+     a valid path such that it has scan_root as a prefix.
+   - if scan_root is unspecified, the result shall be relative to cwd.
+     In this case, we don't want "./" as a prefix.
+
+   Example 1:
+     Inputs:
+       cwd: /proj/app (unused)
+       project_root: /proj
+       scan_root: ../lib
+       proj_rel_path: lib/foo.ml
+
+     Steps:
+       real_project_root: realpath(project_root)
+       real_scan_root: realpath(scan_root) = /proj/lib
+       proj_rel_scan_root: relativize(real_project_root, real_scan_root)
+                           = lib
+       scan_rel_path: relativize(proj_rel_scan_root, proj_rel_path)
+                      = foo.ml
+       result_path: scan_root / scan_rel_path
+                    = ../lib/foo.ml
+
+   Example 2:
+     Inputs:
+       cwd: /proj/lib (unused)
+       project_root: /proj
+       scan_root: None
+       proj_rel_path: lib/foo.ml
+
+     Steps:
+       real_project_root: realpath(project_root)
+       real_scan_root: realpath(force(scan_root)) = /proj/lib
+       proj_rel_scan_root: relativize(real_project_root, real_scan_root)
+                           = lib
+       scan_rel_path: relativize(proj_rel_scan_root, proj_rel_path)
+                      = foo.ml
+       result_path: scan_rel_path
+                    = foo.ml
+*)
+let convert_path_to_using_scan_root ~project_root ~opt_scan_root () =
+  let real_project_root = Unix.realpath project_root in
+  let real_scan_root =
+    Option.value ~default:"." opt_scan_root
+    |> Unix.realpath
+  in
+  let proj_rel_scan_root =
+    Filepath.relativize_dir ~root:real_project_root real_scan_root in
+  fun proj_rel_path ->
+    let scan_rel_path =
+      Filepath.relativize ~root:proj_rel_scan_root proj_rel_path in
+    match opt_scan_root with
+    | Some scan_root -> Filename.concat scan_root scan_rel_path
+    | None -> scan_rel_path
+
 (* a.b.c -> a *)
 let rec chop_extensions path =
   match Filename.extension path with
@@ -272,28 +339,45 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
            "src/foo.mly" will query Dune for "src/" and we'll select
            module "Foo" from the results *)
         match scan_root with
-        | None -> None, None
+        | None -> None, Some [ "." ]
         | Some path ->
             if Sys.file_exists path && not (Sys.is_directory path) then
               let module_name = module_name_of_path path in
               Some module_name, None
             else
-              None, Some [ Filename.dirname path ]
+              None, Some [ path ]
       in
       let/ workspace = Dune_workspace.describe ?root ?dirs () in
       init_load_path workspace;
       let modules = Dune_workspace.get_modules workspace in
       let modules =
         match module_name with
-        | None -> modules
-        | Some module_name -> filter_modules_by_name module_name modules
+        | None ->
+             (* workaround for Dune not filtering. See note where this function
+                is implemented *)
+            (match dirs with
+             | None -> modules
+             | Some dirs ->
+                 Dune_workspace.filter_modules_under_dirs
+                   workspace dirs modules
+            )
+        | Some module_name ->
+            filter_modules_by_name module_name modules
+      in
+      let make_valid_source_path =
+        convert_path_to_using_scan_root
+          ~project_root:workspace.root
+          ~opt_scan_root:scan_root
+          ()
       in
       let total = List.length modules in
       let successes =
         List.fold_left
           (fun successes module_ ->
             match
-              process_one_cmt ?debug workspace module_ handle_event expr
+              process_one_cmt
+                ?debug ~make_valid_source_path
+                workspace module_ handle_event expr
             with
             | Ok () -> successes + 1
             | Error () -> successes)

@@ -43,23 +43,18 @@ val parse_query : string -> Parsetree.expression
     pattern. Raises [Failure] with a human-readable message if [s] is not a
     valid OCaml expression. *)
 
-val search_cmt : Parsetree.expression -> Cmt_format.cmt_infos -> Location.t list
-(** [search_cmt query cmt] scans the typed tree in [cmt] for sub-expressions
-    matching [query] and returns matching locations. May raise
-    [Cannot_parse_type]. *)
-
 val search :
-  make_valid_path:(string -> string) ->
+  make_valid_source_path:(string -> string) ->
   Parsetree.expression ->
   Cmt_format.cmt_infos ->
   finding list
-(** same as [search_cmt] but extracts matching lines and puts them into the
-    'finding' record.
+(** [search_cmt ~make_valid_source_path query cmt] scans the typed tree
+    in [cmt] for sub-expressions matching [query] and returns matching
+    locations. Matching lines are extracted from the source file.
 
-    The [make_valid_path] function takes a source path as found in the locations
-    of the cmt file and make it a valid filesystem path.
+    [make_valid_source_path] is in charge of rewriting project-relative
+    source paths into valid paths that are desirable to the user (prefer
+    relative paths starting with the scan root over absolute paths).
 
-    In a Dune build, paths are relative to the build context (typically
-    [<root>/_build/default]). Since our current working directory is different,
-    we have to adjust the path to make it valid and successfully extract lines
-    from the file. *)
+    @raise Cannot_parse_type
+*)
