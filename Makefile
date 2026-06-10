@@ -20,8 +20,6 @@ test:
 	dune runtest  # build the test executable
 	./test
 
-OCAMLFORMAT_VERSION := $(shell grep '^version' .ocamlformat | sed 's/version = //')
-
 # Install all dependencies needed for development, including pre-commit hooks.
 .PHONY: setup
 setup:

@@ -5,6 +5,7 @@
  (libraries
    compiler-libs.common
    csexp
+   fpath
    unix
  )
 )

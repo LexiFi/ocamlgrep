@@ -661,7 +661,12 @@ let read_lines path =
   In_channel.with_open_text path In_channel.input_all
   |> String.split_on_char '\n' |> Array.of_list
 
-let search ~make_valid_path query_expr cmt =
+let update_loc_path (loc : Location.t) path =
+  { loc with
+    loc_start = { loc.loc_start with pos_fname = path };
+    loc_end = { loc.loc_end with pos_fname = path } }
+
+let search ~make_valid_source_path query_expr cmt =
   (* We can't assume a single source file because a preprocessed file
      contains locations referring to more than one source file. *)
   let get_file_lines = memoize (Hashtbl.create 10) read_lines in
@@ -669,7 +674,11 @@ let search ~make_valid_path query_expr cmt =
     (fun ({ loc_start; loc_end; loc_ghost } as loc : Location.t) ->
       if loc_ghost then None
       else
-        let src_lines = get_file_lines (make_valid_path loc_start.pos_fname) in
+        let source_path =
+          make_valid_source_path loc_start.pos_fname
+        in
+        let loc = update_loc_path loc source_path in
+        let src_lines = get_file_lines source_path in
         let num_lines = Array.length src_lines in
         let s = max 1 (min num_lines loc_start.pos_lnum) in
         let e = max s (min num_lines loc_end.pos_lnum) in

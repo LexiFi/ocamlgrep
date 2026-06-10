@@ -234,6 +234,30 @@ let describe ?context ?dirs ?root () =
           Error
             (Printf.sprintf "dune describe workspace stopped by signal %d" n))
 
+let filter_modules_under_dirs (ws : t) dirs modules =
+  let proj_rel_dirs =
+    let real_project_root = Unix.realpath ws.root in
+    List.map (fun dir ->
+      let real_dir = Unix.realpath dir in
+      Filepath.relativize_dir ~root:real_project_root real_dir
+    ) dirs
+  in
+  let filter_module (m : module_) =
+    match m.impl with
+    | None -> true
+    | Some proj_rel_path_copy (* _build/default/lib/foo.ml *) ->
+        let proj_rel_path =
+          (* lib/foo.ml *)
+          Filepath.relativize ~root:ws.build_context proj_rel_path_copy
+        in
+        List.exists (fun proj_rel_dir ->
+          match proj_rel_dir with
+          | "." -> (* ugly but works? *) true
+          | _ -> Filepath.is_prefix proj_rel_dir proj_rel_path
+        ) proj_rel_dirs
+  in
+  List.filter filter_module modules
+
 let get_modules t =
   let acc =
     List.fold_left
