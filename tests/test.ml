@@ -27,7 +27,7 @@ let replace_backslashes src =
   Buffer.contents buf
 
 let check_path path (finding : finding) =
-  finding.location.file = replace_backslashes path
+  replace_backslashes finding.location.file = path
 
 (** To simplify maintenance, we check only the value of the lines containing the
     finding. Specify a [check_details] function to test for more. *)
