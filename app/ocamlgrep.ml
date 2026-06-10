@@ -141,12 +141,10 @@ let parse_argv () =
   let debug = ref false in
   let output_format = ref Text in
   let strict = ref false in
-  let set_chdir = Arg.String (fun path -> chdir := Some path) in
   let options =
     [
-      "--chdir", set_chdir,
+      "--chdir", Arg.String (fun path -> chdir := Some path),
       "DIR  change the current working directory to DIR before doing any work";
-      "-C", set_chdir, "DIR  same as --chdir";
       "--debug", Arg.Set debug, " print debugging information on stderr";
       "--format", Arg.String (function
         | "json" -> output_format := JSON
