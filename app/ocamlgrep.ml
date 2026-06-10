@@ -163,7 +163,11 @@ let parse_argv () =
   let query, scan_root =
     match List.rev !anon_args with
     | [ query ] -> (query, None)
-    | [ query; scan_root ] -> (query, Some scan_root)
+    | [ query; scan_root ] ->
+        if Filename.is_relative scan_root then
+          (query, Some scan_root)
+        else
+          ksprintf failwith "scan root must be a relative path: %s" scan_root
     | _ ->
         Arg.usage [] usage_msg;
         exit 1

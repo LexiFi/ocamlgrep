@@ -251,6 +251,7 @@ let init_load_path (workspace : Dune_workspace.t) =
 
    Constraints:
    - scan_root is a valid path (indicating a subtree that was scanned)
+   - scan_root is a relative path
    - project_root is a valid path to the project root
    - proj_rel_path is the target path that is relative to the project root
      (or equivalently to the build context) that we want to turn into
@@ -260,14 +261,15 @@ let init_load_path (workspace : Dune_workspace.t) =
 
    Example 1:
      Inputs:
-       cwd: /proj/app (unused)
+       cwd: /proj/app (always a real path)
        project_root: /proj
-       scan_root: ../lib
+       scan_root: ../lib (possibly a symlink; must be preserved)
        proj_rel_path: lib/foo.ml
 
      Steps:
        real_project_root: realpath(project_root)
-       real_scan_root: realpath(scan_root) = /proj/lib
+       real_scan_root: cwd / scan_root (only the cwd prefix is a real path)
+                       = /proj/lib
        proj_rel_scan_root: relativize(real_project_root, real_scan_root)
                            = lib
        scan_rel_path: relativize(proj_rel_scan_root, proj_rel_path)
@@ -277,14 +279,14 @@ let init_load_path (workspace : Dune_workspace.t) =
 
    Example 2:
      Inputs:
-       cwd: /proj/lib (unused)
+       cwd: /proj/lib (always a real path)
        project_root: /proj
        scan_root: None
        proj_rel_path: lib/foo.ml
 
      Steps:
        real_project_root: realpath(project_root)
-       real_scan_root: realpath(force(scan_root)) = /proj/lib
+       real_scan_root: cwd = /proj/lib
        proj_rel_scan_root: relativize(real_project_root, real_scan_root)
                            = lib
        scan_rel_path: relativize(proj_rel_scan_root, proj_rel_path)
@@ -293,10 +295,18 @@ let init_load_path (workspace : Dune_workspace.t) =
                     = foo.ml
 *)
 let convert_path_to_using_scan_root ~project_root ~opt_scan_root () =
+  let cwd = Sys.getcwd () in
   let real_project_root = Unix.realpath project_root in
   let real_scan_root =
-    Option.value ~default:"." opt_scan_root
-    |> Unix.realpath
+    match opt_scan_root with
+    | None -> cwd
+    | Some scan_root ->
+        if not (Filename.is_relative scan_root) then
+          ksprintf invalid_arg
+            "convert_path_to_using_scan_root: \
+             scan root must be a relative path: %s" scan_root
+        else
+          Filename.concat cwd scan_root
   in
   let proj_rel_scan_root =
     Filepath.relativize_dir ~root:real_project_root real_scan_root in
@@ -340,7 +350,7 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
   | Some root when not (is_dune_project_root root) ->
       Error (sprintf "Not a Dune project root folder: %s" root)
   | _ ->
-      let module_name, dirs =
+      let module_name, rel_dirs =
         (* request as little as possible from Dune - but if our scan root
            is a regular file, we have to pass its parent folder because
            Dune won't take regular files.
@@ -357,7 +367,7 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
             else
               None, Some [ path ]
       in
-      let/ workspace = Dune_workspace.describe ?root ?dirs () in
+      let/ workspace = Dune_workspace.describe ?root ?dirs:rel_dirs () in
       init_load_path workspace;
       let modules = Dune_workspace.get_modules workspace in
       let modules =
@@ -365,11 +375,11 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
         | None ->
              (* workaround for Dune not filtering. See note where this function
                 is implemented *)
-            (match dirs with
+            (match rel_dirs with
              | None -> modules
-             | Some dirs ->
+             | Some rel_dirs ->
                  Dune_workspace.filter_modules_under_dirs
-                   workspace dirs modules
+                   workspace rel_dirs modules
             )
         | Some module_name ->
             filter_modules_by_name module_name modules

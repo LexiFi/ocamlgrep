@@ -62,7 +62,7 @@ val search :
     @param scan_root
       only scan this subtree which must be a folder or or a source file from
       which the OCaml module name can be derived by removing extensions and
-      capitalization. *)
+      capitalization. Must be a relative path. *)
 
 val incremental_search :
   ?debug:bool ->

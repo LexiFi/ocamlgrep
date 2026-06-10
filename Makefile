@@ -14,9 +14,10 @@ demo:
 # This builds the test project(s) on which we run ocamlgrep.
 # '@check' is to ensure we build all the cmt files.
 .PHONY: test
-test:
+test: build
 	ln -sf _build/default/tests/test.exe test
-	dune build @check
+	dune build @check  # build the cmt files
+	./ocamlgrep true > /dev/null  # sanity check - some results expected
 	dune runtest  # build the test executable
 	./test
 

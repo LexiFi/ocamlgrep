@@ -14,6 +14,21 @@ let print_warnings warnings =
 let print_findings findings =
   List.iter (fun x -> eprintf "%s" (Ocamlgrep.show_finding x)) findings
 
+(* relative Windows path -> Unix path
+
+   String.replace_all is only available starting with OCaml 5.5.
+*)
+let replace_backslashes src =
+  let buf = Buffer.create (String.length src) in
+  String.iter (function
+    | '\\' -> Buffer.add_char buf '/'
+    | c -> Buffer.add_char buf c
+  ) src;
+  Buffer.contents buf
+
+let check_path path (finding : finding) =
+  replace_backslashes finding.location.file = path
+
 (** To simplify maintenance, we check only the value of the lines containing the
     finding. Specify a [check_details] function to test for more. *)
 let test_ocamlgrep ?(check_details = fun _finding -> true)
@@ -72,6 +87,22 @@ let tests _env =
     test_ocamlgrep "cppo preprocessing"
       ~scan_root:"tests/proj/lib/cppo_test.cppo.ml" {|"cppo_test"|}
       [ [ {|"cppo_test"|} ] ];
+    test_ocamlgrep "symlinks"
+      ~scan_root:"tests/proj" "duplicate"
+      [ [ "duplicate" ]; [ "duplicate" ] ];
+    test_ocamlgrep "non-symlink scan root"
+      ~scan_root:"tests/proj/original"
+      ~check_details:(check_path "tests/proj/original/main.ml")
+      "duplicate"
+      [ [ "duplicate" ] ];
+    test_ocamlgrep "symlink scan root"
+      ~scan_root:"tests/proj/symlink" "duplicate"
+      ~check_details:(check_path "tests/proj/symlink/main.ml")
+      [ [ "duplicate" ] ];
+    test_ocamlgrep "preserve scan root"
+      ~scan_root:"tests/proj/../proj/symlink" "duplicate"
+      ~check_details:(check_path "tests/proj/../proj/symlink/main.ml")
+      [ [ "duplicate" ] ];
   ]
 
 let () = Testo.interpret_argv ~project_name:"ocamlgrep" tests

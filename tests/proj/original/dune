@@ -1,0 +1,5 @@
+; This is for testing symlinks.
+; This folder exists as a regular dir and as a symlink.
+(executable
+ (name main)
+)
