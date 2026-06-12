@@ -32,6 +32,7 @@
  (depends
   ocaml
   (dune (>= 3.18))
+  (cmdliner (>= 1.1.0))
   (ocamlgrep-lib (= :version))
 
   ; Dependencies used for testing special build features
