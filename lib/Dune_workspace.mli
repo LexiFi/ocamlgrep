@@ -109,6 +109,10 @@ val describe :
     @param dirs
       restrict the description of the workspace to these folders. Their paths
       must be relative to the current folder (not to the project root).
+      Note that this stills returns all the libraries the requested
+      libraries depend on. This may include local libraries outside
+      the requested [dirs]. Use {!filter_modules_under_dirs} to filter those
+      out.
     @param root force the project root instead of inferring it. *)
 
 val get_modules : t -> module_ list
@@ -119,8 +123,4 @@ val filter_modules_under_dirs :
 (** [filter_modules_under_dirs workspace dirs modules] returns only modules
     that are located under one of the folders [dirs]. [dirs] must be relative
     paths.
-
-    As of dune 3.22.2, [dune describe workspace ../lib] doesn't filter
-    on ../lib as it's supposed to. This is a workaround where we do the
-    filtering ourselves.
 *)

@@ -10,6 +10,8 @@
    extra dependency beyond compiler-libs.common and unix.
 *)
 
+open Printf
+
 type module_ = {
   name : string;
   impl : string option;
@@ -55,21 +57,21 @@ let field name pairs =
   | Some (Csexp.List [ _; v ]) -> v
   | Some _
   | None ->
-      Printf.ksprintf failwith "dune describe: missing or malformed field %S"
+      ksprintf failwith "dune describe: missing or malformed field %S"
         name
 
 let string_field name pairs =
   match field name pairs with
   | Csexp.Atom s -> s
   | _ ->
-      Printf.ksprintf failwith "dune describe: field %S: expected a string" name
+      ksprintf failwith "dune describe: field %S: expected a string" name
 
 let bool_field name pairs =
   match string_field name pairs with
   | "true" -> true
   | "false" -> false
   | s ->
-      Printf.ksprintf failwith "dune describe: field %S: not a bool (%S)" name s
+      ksprintf failwith "dune describe: field %S: not a bool (%S)" name s
 
 let strings_field name pairs =
   match field name pairs with
@@ -78,25 +80,25 @@ let strings_field name pairs =
         (function
           | Csexp.Atom s -> s
           | _ ->
-              Printf.ksprintf failwith
+              ksprintf failwith
                 "dune describe: field %S: expected a list of strings" name)
         xs
   | _ ->
-      Printf.ksprintf failwith "dune describe: field %S: expected a list" name
+      ksprintf failwith "dune describe: field %S: expected a list" name
 
 let string_opt_field name pairs =
   match field name pairs with
   | Csexp.List [] -> None
   | Csexp.List [ Csexp.Atom s ] -> Some s
   | _ ->
-      Printf.ksprintf failwith "dune describe: field %S: expected () or (value)"
+      ksprintf failwith "dune describe: field %S: expected () or (value)"
         name
 
 let pairs_of label sexp =
   match sexp with
   | Csexp.List pairs -> pairs
   | _ ->
-      Printf.ksprintf failwith "dune describe: %s: expected a list of fields"
+      ksprintf failwith "dune describe: %s: expected a list of fields"
         label
 
 let module_of_csexp sexp =
@@ -113,7 +115,7 @@ let modules_field name pairs =
   match field name pairs with
   | Csexp.List xs -> List.map module_of_csexp xs
   | _ ->
-      Printf.ksprintf failwith "dune describe: field %S: expected a list" name
+      ksprintf failwith "dune describe: field %S: expected a list" name
 
 let library_of_csexp sexp =
   let f = pairs_of "library" sexp in
@@ -184,6 +186,9 @@ let read_all ic =
   in
   loop ()
 
+let show_command argv =
+  argv |> Array.to_list |> String.concat " "
+
 (* Invoke 'dune describe workspace' *)
 let describe ?context ?dirs ?root () =
   let base_args =
@@ -205,13 +210,15 @@ let describe ?context ?dirs ?root () =
     | Some dirs -> args @ dirs
   in
   let argv = Array.of_list ("dune" :: args) in
+  if false then (* debug *)
+    eprintf "command: %s\n%!" (show_command argv);
   let env = Unix.environment () in
   match Unix.open_process_args_full "dune" argv env with
   | exception Unix.Unix_error (Unix.ENOENT, _, _) ->
       Error "could not find `dune` in PATH"
   | exception Unix.Unix_error (err, _, _) ->
       Error
-        (Printf.sprintf "could not run `dune describe workspace`: %s"
+        (sprintf "could not run `dune describe workspace`: %s"
            (Unix.error_message err))
   | ic, oc, ec -> (
       close_out oc;
@@ -223,16 +230,16 @@ let describe ?context ?dirs ?root () =
           | Ok sexp -> parse_csexp sexp
           | Error msg ->
               Error
-                (Printf.sprintf "could not parse dune's csexp output: %s" msg))
+                (sprintf "could not parse dune's csexp output: %s" msg))
       | WEXITED n ->
           Error
-            (Printf.sprintf "dune describe workspace exited with code %d:\n%s" n
+            (sprintf "dune describe workspace exited with code %d:\n%s" n
                (String.trim stderr_data))
       | WSIGNALED n ->
-          Error (Printf.sprintf "dune describe workspace killed by signal %d" n)
+          Error (sprintf "dune describe workspace killed by signal %d" n)
       | WSTOPPED n ->
           Error
-            (Printf.sprintf "dune describe workspace stopped by signal %d" n))
+            (sprintf "dune describe workspace stopped by signal %d" n))
 
 let filter_modules_under_dirs (ws : t) rel_dirs modules =
   let proj_rel_dirs =

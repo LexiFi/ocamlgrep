@@ -373,8 +373,8 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
       let modules =
         match module_name with
         | None ->
-             (* workaround for Dune not filtering. See note where this function
-                is implemented *)
+            (* Exclude local libraries that are dependencies of the requested
+               libraries *)
             (match rel_dirs with
              | None -> modules
              | Some rel_dirs ->
