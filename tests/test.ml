@@ -103,6 +103,18 @@ let tests _env =
       ~scan_root:"tests/proj/../proj/symlink" "duplicate"
       ~check_details:(check_path "tests/proj/../proj/symlink/main.ml")
       [ [ "duplicate" ] ];
+    test_ocamlgrep "tuple type with holes"
+      ~scan_root:"tests/proj/lib/types.ml"
+      "(__ : _ * _)"
+      [ [ {|(1, "hello")|} ] ];
+    test_ocamlgrep "arrow type with holes"
+      ~scan_root:"tests/proj/lib/types.ml"
+      "(__ : _ -> _)"
+      [ [ "string_of_int" ]; [ "fun s n -> String.length s = n" ] ];
+    test_ocamlgrep "tuple type with specific first element"
+      ~scan_root:"tests/proj/lib/types.ml"
+      "(__ : int * _)"
+      [ [ {|(1, "hello")|} ] ];
   ]
 
 let () = Testo.interpret_argv ~project_name:"ocamlgrep" tests
