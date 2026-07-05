@@ -474,12 +474,19 @@ and match_typ ptyp texpr =
                 else false
           end
           else false
+#if OCAML_VERSION >= (5, 4, 0)
       | Ptyp_tuple pty_args, Ttuple ty_args ->
           if List.length ty_args = List.length pty_args then
             List.for_all2
               (fun (_, pty) (_, ty) -> match_typ pty ty)
               pty_args ty_args
           else false
+#else
+      | Ptyp_tuple pty_args, Ttuple ty_args ->
+          if List.length ty_args = List.length pty_args then
+            List.for_all2 match_typ pty_args ty_args
+          else false
+#endif
       | Ptyp_arrow (_, pty1, pty2), Tarrow (_, ty1, ty2, _) ->
           match_typ pty1 ty1 && match_typ pty2 ty2
       | Ptyp_any, _ -> true
