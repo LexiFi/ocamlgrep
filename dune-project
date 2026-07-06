@@ -18,7 +18,6 @@
  (synopsis "OCaml structural grep library")
  (depends
   (ocaml (>= 4.14))
-  (dune (>= 3.18))
   cppo
   (csexp (>= 1.4.0))
   fpath
@@ -33,7 +32,6 @@
  (synopsis "OCaml structural grep tool")
  (depends
   ocaml
-  (dune (>= 3.18))
   (cmdliner (>= 1.1.0))
   (ocamlgrep-lib (= :version))
 
