@@ -134,8 +134,9 @@ jobs:
           shell: bash.exe
           command: |
             # Copied from the makefile (please keep it in sync and simple)
-            opam exec -- dune build @check
+            opam exec -- dune build
             opam exec -- dune runtest
+            (cd tests/proj && dune build @check --root . )
             opam exec -- _build/default/tests/test.exe
 
 workflows:
