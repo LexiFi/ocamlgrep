@@ -54,11 +54,14 @@ val matched : finding -> string list
 (**/**)
 
 val search :
-  ?debug:bool -> ?root:string -> ?scan_root:string -> string -> search_results
+  ?debug:bool ->
+  ?dune_root:string ->
+  ?scan_root:string ->
+  string -> search_results
 (** [search query] searches the project containing the current directory for
     OCaml expressions matching the pattern [query].
 
-    @param root forces the use of this folder as Dune's root folder.
+    @param dune_root forces the use of this folder as Dune's root folder.
     @param scan_root
       only scan this subtree which must be a folder or or a source file from
       which the OCaml module name can be derived by removing extensions and
@@ -66,7 +69,7 @@ val search :
 
 val incremental_search :
   ?debug:bool ->
-  ?root:string ->
+  ?dune_root:string ->
   ?scan_root:string ->
   (event -> unit) ->
   string ->

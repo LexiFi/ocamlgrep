@@ -16,9 +16,10 @@ demo:
 .PHONY: test
 test: build
 	ln -sf _build/default/tests/test.exe test
-	dune build @check  # build the cmt files
+	dune build
 	./ocamlgrep true > /dev/null  # sanity check - some results expected
 	dune runtest  # build the test executable
+	cd tests/proj && dune build @check --root .  # build the cmt files
 	./test
 
 # Install all dependencies needed for development, including pre-commit hooks.

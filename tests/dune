@@ -14,3 +14,7 @@
  (name runtest)
  (deps test.exe)
 )
+
+; The compilation of the test project 'proj' is done separately
+; from the main project.
+(dirs :standard \ proj)

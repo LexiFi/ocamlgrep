@@ -338,7 +338,8 @@ let filter_modules_by_name name modules =
 
 (** Generic incremental search. [search_fn] is called for each cmt file and
     should return a list of findings. [handle_event] accumulates state. *)
-let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
+let incremental_search
+    ?debug ?dune_root ?scan_root (handle_event : event -> unit)
     query =
   let/ expr =
     match Parse.implementation (Lexing.from_string query) with
@@ -346,7 +347,7 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
     | _ -> Error "Can only search for an expression."
     | exception _ -> Error "Could not parse search expression."
   in
-  match root with
+  match dune_root with
   | Some root when not (is_dune_project_root root) ->
       Error (sprintf "Not a Dune project root folder: %s" root)
   | _ ->
@@ -367,7 +368,8 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
             else
               None, Some [ path ]
       in
-      let/ workspace = Dune_workspace.describe ?root ?dirs:rel_dirs () in
+      let/ workspace =
+        Dune_workspace.describe ?root:dune_root ?dirs:rel_dirs () in
       init_load_path workspace;
       let modules = Dune_workspace.get_modules workspace in
       let modules =
@@ -415,7 +417,7 @@ let incremental_search ?debug ?root ?scan_root (handle_event : event -> unit)
       Ok ()
 
 (* High-level search entry point for use by ocaml-lsp and similar tools. *)
-let search ?debug ?root ?scan_root query =
+let search ?debug ?dune_root ?scan_root query =
   let findings = ref [] in
   let warnings = ref [] in
   let handle_event = function
@@ -423,7 +425,8 @@ let search ?debug ?root ?scan_root query =
     | Finding f -> findings := f :: !findings
     | Warning w -> warnings := w :: !warnings
   in
-  let res = incremental_search ?debug ?root ?scan_root handle_event query in
+  let res =
+    incremental_search ?debug ?dune_root ?scan_root handle_event query in
   let findings = List.rev !findings in
   let warnings = List.rev !warnings in
   let error =
