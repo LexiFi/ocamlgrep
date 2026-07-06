@@ -8,6 +8,7 @@
 (homepage "https://github.com/LexiFi/ocamlgrep")
 (maintainers "Martin Jambon <martin@mjambon.com>")
 (authors
+  "Edwin Ansari"
   "Nicolás Ojeda Bär"
   "Martin Jambon"
 )
