@@ -133,7 +133,9 @@ let dune_root_term : string option Term.t =
   let info =
     Arg.info ["dune-root"] ~docv:"DUNE_ROOT"
       ~doc:
-        "Force the Dune root folder instead of letting Dune detect it."
+        "Force the Dune root folder to $(docv) instead of letting Dune \
+         detect it. Use this if the target project was built with \
+         'dune --root $(docv)'."
   in
   Arg.value (Arg.opt (Arg.some Arg.string) None info)
 
