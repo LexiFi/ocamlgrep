@@ -20,9 +20,10 @@
   (ocaml (>= 4.14))
   (dune (>= 3.18))
   cppo
-  csexp
+  (csexp (>= 1.4.0))
   fpath
-  yojson
+  (yojson (>= 3.0.0))
+  (testo (and (>= 0.5.0) :with-test))
  )
  (maintenance_intent "(latest)")
 )
