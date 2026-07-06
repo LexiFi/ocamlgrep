@@ -31,14 +31,18 @@ let check_path path (finding : finding) =
 
 (** To simplify maintenance, we check only the value of the lines containing the
     finding. Specify a [check_details] function to test for more. *)
-let test_ocamlgrep ?(check_details = fun _finding -> true)
-    ?(scan_root = "tests/proj") ?(tolerate_extra_findings = false) name query
+let test_ocamlgrep
+    ?(check_details = fun _finding -> true)
+    ?(dune_root = ".")
+    ?(scan_root = ".")
+    ?(tolerate_extra_findings = false) name query
     expected_findings =
   let test_func () =
+    Testo.with_chdir (Fpath.v "tests/proj") @@ fun () ->
     eprintf "Query: %s\n" query;
     eprintf "Scan root: %s\n" scan_root;
     let { findings; warnings; error } : Ocamlgrep.search_results =
-      Ocamlgrep.search ~scan_root query
+      Ocamlgrep.search ~dune_root ~scan_root query
     in
     eprintf "Warnings:\n";
     print_warnings warnings;
@@ -77,42 +81,43 @@ let test_ocamlgrep ?(check_details = fun _finding -> true)
 
 let tests _env =
   [
-    test_ocamlgrep "strings" ~scan_root:"tests/proj/lib/strings.ml"
+    test_ocamlgrep "strings"
+      ~scan_root:"lib/strings.ml"
       "(__ : string)"
       [ [ {|"a"|} ]; [ {|literal|} ]; [ {|"priv"|} ] ];
     test_ocamlgrep "type alias baseline"
-      ~scan_root:"tests/proj/lib/alias_use.ml" "(__ : Alias_def.t)" [ [ "x" ] ];
-    test_ocamlgrep "type alias" ~scan_root:"tests/proj/lib/alias_use.ml"
+      ~scan_root:"lib/alias_use.ml" "(__ : Alias_def.t)" [ [ "x" ] ];
+    test_ocamlgrep "type alias" ~scan_root:"lib/alias_use.ml"
       "(__ : string)" [ [ "x" ] ];
     test_ocamlgrep "cppo preprocessing"
-      ~scan_root:"tests/proj/lib/cppo_test.cppo.ml" {|"cppo_test"|}
+      ~scan_root:"lib/cppo_test.cppo.ml" {|"cppo_test"|}
       [ [ {|"cppo_test"|} ] ];
     test_ocamlgrep "symlinks"
-      ~scan_root:"tests/proj" "duplicate"
+      "duplicate"
       [ [ "duplicate" ]; [ "duplicate" ] ];
     test_ocamlgrep "non-symlink scan root"
-      ~scan_root:"tests/proj/original"
-      ~check_details:(check_path "tests/proj/original/main.ml")
+      ~scan_root:"original"
+      ~check_details:(check_path "original/main.ml")
       "duplicate"
       [ [ "duplicate" ] ];
     test_ocamlgrep "symlink scan root"
-      ~scan_root:"tests/proj/symlink" "duplicate"
-      ~check_details:(check_path "tests/proj/symlink/main.ml")
+      ~scan_root:"symlink" "duplicate"
+      ~check_details:(check_path "symlink/main.ml")
       [ [ "duplicate" ] ];
     test_ocamlgrep "preserve scan root"
-      ~scan_root:"tests/proj/../proj/symlink" "duplicate"
-      ~check_details:(check_path "tests/proj/../proj/symlink/main.ml")
+      ~scan_root:"symlink" "duplicate"
+      ~check_details:(check_path "symlink/main.ml")
       [ [ "duplicate" ] ];
     test_ocamlgrep "tuple type with holes"
-      ~scan_root:"tests/proj/lib/types.ml"
+      ~scan_root:"lib/types.ml"
       "(__ : _ * _)"
       [ [ {|(1, "hello")|} ] ];
     test_ocamlgrep "arrow type with holes"
-      ~scan_root:"tests/proj/lib/types.ml"
+      ~scan_root:"lib/types.ml"
       "(__ : _ -> _)"
       [ [ "string_of_int" ]; [ "fun s n -> String.length s = n" ] ];
     test_ocamlgrep "tuple type with specific first element"
-      ~scan_root:"tests/proj/lib/types.ml"
+      ~scan_root:"lib/types.ml"
       "(__ : int * _)"
       [ [ {|(1, "hello")|} ] ];
   ]

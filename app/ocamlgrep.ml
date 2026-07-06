@@ -21,6 +21,7 @@ type conf = {
   scan_root : string option;
   chdir : string option;
   debug : bool;
+  dune_root : string option;
   output_format : output_format;
   strict : bool;
   use_color : bool;
@@ -60,7 +61,9 @@ let run (conf : conf) =
       let has_finding = ref false in
       let has_warning = ref false in
       (match
-         Ocamlgrep.incremental_search ~debug:conf.debug
+         Ocamlgrep.incremental_search
+           ~debug:conf.debug
+           ?dune_root:conf.dune_root
            ?scan_root:conf.scan_root
            (handle_event ~has_finding ~has_warning conf)
            conf.query
@@ -126,6 +129,14 @@ let debug_term : bool Term.t =
   in
   Arg.value (Arg.flag info)
 
+let dune_root_term : string option Term.t =
+  let info =
+    Arg.info ["dune-root"] ~docv:"DUNE_ROOT"
+      ~doc:
+        "Force the Dune root folder instead of letting Dune detect it."
+  in
+  Arg.value (Arg.opt (Arg.some Arg.string) None info)
+
 let format_term : output_format Term.t =
   let info =
     Arg.info [ "format" ]
@@ -145,7 +156,7 @@ let strict_term : bool Term.t =
   Arg.value (Arg.flag info)
 
 let cmd_term =
-  let combine chdir debug output_format query scan_root strict =
+  let combine chdir debug dune_root output_format query scan_root strict =
     let scan_root =
       match scan_root with
       | Some path when not (Filename.is_relative path) ->
@@ -160,6 +171,7 @@ let cmd_term =
            scan_root;
            chdir;
            debug;
+           dune_root;
            output_format;
            strict;
            use_color = use_color ();
@@ -173,7 +185,7 @@ let cmd_term =
         exit exit_error)
   in
   Term.(
-    const combine $ chdir_term $ debug_term
+    const combine $ chdir_term $ debug_term $ dune_root_term
     $ format_term $ query_term $ scan_root_term $ strict_term
   )
 
