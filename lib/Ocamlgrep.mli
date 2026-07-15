@@ -57,9 +57,9 @@ val search :
   ?debug:bool ->
   ?dune_root:string ->
   ?scan_root:string ->
-  string -> search_results
-(** [search query] searches the project containing the current directory for
-    OCaml expressions matching the pattern [query].
+  string list -> search_results
+(** [search queries] searches the project containing the current directory for
+    OCaml expressions matching the patterns [queries].
 
     @param dune_root forces the use of this folder as Dune's root folder.
     @param scan_root
@@ -72,7 +72,7 @@ val incremental_search :
   ?dune_root:string ->
   ?scan_root:string ->
   (event -> unit) ->
-  string ->
+  string list ->
   (unit, string) result
 (** Same as [search] but lets the caller report findings and warnings as they
     come rather than waiting for the end of the scan. *)

@@ -154,8 +154,8 @@ let process_one_cmt
     ~make_valid_source_path
     (workspace : Dune_workspace.t)
     (module_ : Dune_workspace.module_)
-    handle_event query : (unit, unit) result
-    =
+    handle_event queries : (unit, unit) result
+  =
   let warning msg = handle_event (Warning msg) in
   let/ cmt_path =
     (* path from the project root: _build/default/xxxxx *)
@@ -180,7 +180,7 @@ let process_one_cmt
       in
       handle_event (Scan_module module_.name);
       match
-        Match.search ~make_valid_source_path query cmt
+        Match.search ~make_valid_source_path queries cmt
       with
       | exception exn ->
           warning
@@ -336,17 +336,25 @@ let module_name_of_path path =
 let filter_modules_by_name name modules =
   List.filter (fun (m : Dune_workspace.module_) -> m.name = name) modules
 
+let parse_search_query query =
+  match Parse.implementation (Lexing.from_string query) with
+  | [ { Parsetree.pstr_desc = Pstr_eval (x, _); _ } ] -> Ok x
+  | _ -> Error "Can only search for an expression."
+  | exception _ -> Error "Could not parse search expression."
+
+let rec parse_search_queries = function
+  | [] -> Ok []
+  | query :: queries ->
+      let/ expr = parse_search_query query in
+      let/ exprs = parse_search_queries queries in
+      Ok (expr :: exprs)
+
 (** Generic incremental search. [search_fn] is called for each cmt file and
     should return a list of findings. [handle_event] accumulates state. *)
 let incremental_search
     ?debug ?dune_root ?scan_root (handle_event : event -> unit)
-    query =
-  let/ expr =
-    match Parse.implementation (Lexing.from_string query) with
-    | [ { Parsetree.pstr_desc = Pstr_eval (x, _); _ } ] -> Ok x
-    | _ -> Error "Can only search for an expression."
-    | exception _ -> Error "Could not parse search expression."
-  in
+    queries =
+  let/ exprs = parse_search_queries queries in
   match dune_root with
   | Some root when not (is_dune_project_root root) ->
       Error (sprintf "Not a Dune project root folder: %s" root)
@@ -399,7 +407,7 @@ let incremental_search
             match
               process_one_cmt
                 ?debug ~make_valid_source_path
-                workspace module_ handle_event expr
+                workspace module_ handle_event exprs
             with
             | Ok () -> successes + 1
             | Error () -> successes)
@@ -417,7 +425,7 @@ let incremental_search
       Ok ()
 
 (* High-level search entry point for use by ocaml-lsp and similar tools. *)
-let search ?debug ?dune_root ?scan_root query =
+let search ?debug ?dune_root ?scan_root queries =
   let findings = ref [] in
   let warnings = ref [] in
   let handle_event = function
@@ -426,7 +434,7 @@ let search ?debug ?dune_root ?scan_root query =
     | Warning w -> warnings := w :: !warnings
   in
   let res =
-    incremental_search ?debug ?dune_root ?scan_root handle_event query in
+    incremental_search ?debug ?dune_root ?scan_root handle_event queries in
   let findings = List.rev !findings in
   let warnings = List.rev !warnings in
   let error =

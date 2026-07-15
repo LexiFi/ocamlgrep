@@ -17,7 +17,7 @@ open Cmdliner
 type output_format = Text | JSON
 
 type conf = {
-  query : string;
+  queries : string list;
   scan_root : string option;
   chdir : string option;
   debug : bool;
@@ -59,7 +59,7 @@ let run (conf : conf) =
            ?dune_root:conf.dune_root
            ?scan_root:conf.scan_root
            (handle_event ~has_finding ~has_warning conf)
-           conf.query
+           conf.queries
        with
       | Ok () ->
           if conf.strict && !has_warning then exit exit_error
@@ -68,7 +68,7 @@ let run (conf : conf) =
       | Error msg -> failwith msg)
   | JSON ->
       let res =
-        Ocamlgrep.search ~debug:conf.debug ?scan_root:conf.scan_root conf.query
+        Ocamlgrep.search ~debug:conf.debug ?scan_root:conf.scan_root conf.queries
       in
       print_string (Ocamlgrep.to_json res);
       flush stdout;
@@ -93,12 +93,22 @@ let format_conv =
   in
   Arg.conv ~docv:"FORMAT" (parse, print)
 
-let query_term : string Term.t =
-  let info =
-    Arg.info [] ~docv:"PATTERN"
-      ~doc:"OCaml expression used as a search pattern (see $(b,PATTERN SYNTAX))."
+let query_term : string list Term.t =
+  let info names =
+    Arg.info names ~docv:"PATTERN"
+      ~doc:
+        "OCaml expression used as search pattern (see $(b,PATTERN SYNTAX))."
   in
-  Arg.required (Arg.pos 0 (Arg.some Arg.string) None info)
+  let query_pos =
+    let info = info [] in
+    Arg.value (Arg.pos 0 (Arg.some Arg.string) None info)
+  in
+  let query_opt =
+    let info = info ["e"] in
+    Arg.value (Arg.opt_all Arg.string [] info)
+  in
+  let cons_opt x xs = match x with None -> xs | Some x -> x :: xs in
+  Term.(const cons_opt $ query_pos $ query_opt)
 
 let scan_root_term : string option Term.t =
   let info =
@@ -177,8 +187,10 @@ let no_color_term =
   in
   Term.(const env_no_color $ Arg.(value & vflag false no_color) $ env)
 
+let (let/) = Result.bind
+
 let cmd_term =
-  let combine chdir debug dune_root output_format query scan_root strict no_messages no_color =
+  let combine chdir debug dune_root output_format queries scan_root strict no_messages no_color =
     let scan_root =
       match scan_root with
       | Some path when not (Filename.is_relative path) ->
@@ -187,10 +199,14 @@ let cmd_term =
       | _ -> scan_root
     in
     let use_color = not no_color in
+    let/ () =
+      if queries = [] then Error "Please specify a search pattern."
+      else Ok ()
+    in
     (try
        run
          {
-           query;
+           queries;
            scan_root;
            chdir;
            debug;
@@ -294,4 +310,4 @@ let () =
   let info =
     Cmd.info "ocamlgrep" ~doc:"structural search for OCaml code" ~man
   in
-  Cmd.v info cmd_term |> Cmd.eval |> exit
+  Term.term_result' ~usage:true cmd_term |> Cmd.v info |> Cmd.eval |> exit
