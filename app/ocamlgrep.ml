@@ -28,14 +28,6 @@ type conf = {
   use_color : bool;
 }
 
-(* Colors are emitted unless the user opts out via the standard NO_COLOR env
-   variable (https://no-color.org/). This keeps the snapshot tests readable
-   without changing the default interactive behavior. *)
-let use_color () =
-  match Sys.getenv_opt "NO_COLOR" with
-  | Some s when s <> "" -> false
-  | _ -> true
-
 let handle_event ~has_finding ~has_warning (conf : conf) (ev : Ocamlgrep.event)
     =
   match ev with
@@ -166,8 +158,27 @@ let no_messages_term : bool Term.t =
   in
   Arg.value (Arg.flag info)
 
+let no_color_var =
+  let doc = "See $(opt). Enabled if set to anything but the empty string." in
+  Cmd.Env.info ~doc "NO_COLOR"
+
+let no_color_term =
+  let doc = "Disable ANSI text styling." in
+  (* We can't use Arg.flag here because it doesn't parse
+     like https://no-color.org wants. *)
+  let no_color =
+    [ true, Arg.info ["no-color"] ~env:no_color_var ~doc ]
+  in
+  let env_no_color no_color env =
+    no_color ||
+    match env "NO_COLOR" with
+    | None | Some "" -> false
+    | Some _ -> true
+  in
+  Term.(const env_no_color $ Arg.(value & vflag false no_color) $ env)
+
 let cmd_term =
-  let combine chdir debug dune_root output_format query scan_root strict no_messages =
+  let combine chdir debug dune_root output_format query scan_root strict no_messages no_color =
     let scan_root =
       match scan_root with
       | Some path when not (Filename.is_relative path) ->
@@ -175,6 +186,7 @@ let cmd_term =
           exit exit_error
       | _ -> scan_root
     in
+    let use_color = not no_color in
     (try
        run
          {
@@ -186,20 +198,20 @@ let cmd_term =
            output_format;
            strict;
            no_messages;
-           use_color = use_color ();
+           use_color;
          }
      with
     | Failure s | Sys_error s ->
-        Ocamlgrep.error ~use_color:(use_color ()) s;
+        Ocamlgrep.error ~use_color s;
         exit exit_error
     | exn ->
-        Ocamlgrep.error ~use_color:(use_color ()) (Printexc.to_string exn);
+        Ocamlgrep.error ~use_color (Printexc.to_string exn);
         exit exit_error)
   in
   Term.(
     const combine $ chdir_term $ debug_term $ dune_root_term
     $ format_term $ query_term $ scan_root_term $ strict_term
-    $ no_messages_term
+    $ no_messages_term $ no_color_term
   )
 
 (****************************************************************************)
@@ -265,8 +277,7 @@ let man : Manpage.block list =
        7 |   | None -> None\n\
        8 |   | Some y -> Some y";
     `P
-      "The matched range is highlighted in red unless the $(b,NO_COLOR) \
-       environment variable is set (https://no-color.org/).";
+      "The matched range is highlighted in red unless $(b,--no-color) is used.";
     `S Manpage.s_exit_status;
     `P "$(b,0): one or more matches were found.";
     `P "$(b,1): no matches were found.";
