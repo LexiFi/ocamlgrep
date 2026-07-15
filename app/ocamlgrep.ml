@@ -24,6 +24,7 @@ type conf = {
   dune_root : string option;
   output_format : output_format;
   strict : bool;
+  no_messages : bool;
   use_color : bool;
 }
 
@@ -42,7 +43,7 @@ let handle_event ~has_finding ~has_warning (conf : conf) (ev : Ocamlgrep.event)
       if conf.debug then eprintf "scan module %s\n%!" module_
   | Warning msg ->
       has_warning := true;
-      Ocamlgrep.warn ~use_color:conf.use_color msg
+      if not conf.no_messages then Ocamlgrep.warn ~use_color:conf.use_color msg
   | Finding finding ->
       has_finding := true;
       printf "%s%!" (Ocamlgrep.show_finding ~use_color:conf.use_color finding)
@@ -157,8 +158,16 @@ let strict_term : bool Term.t =
   in
   Arg.value (Arg.flag info)
 
+let no_messages_term : bool Term.t =
+  let info =
+    Arg.info [ "no-messages" ]
+      ~doc:
+        "Suppress non-critical output (warnings, etc)."
+  in
+  Arg.value (Arg.flag info)
+
 let cmd_term =
-  let combine chdir debug dune_root output_format query scan_root strict =
+  let combine chdir debug dune_root output_format query scan_root strict no_messages =
     let scan_root =
       match scan_root with
       | Some path when not (Filename.is_relative path) ->
@@ -176,6 +185,7 @@ let cmd_term =
            dune_root;
            output_format;
            strict;
+           no_messages;
            use_color = use_color ();
          }
      with
@@ -189,6 +199,7 @@ let cmd_term =
   Term.(
     const combine $ chdir_term $ debug_term $ dune_root_term
     $ format_term $ query_term $ scan_root_term $ strict_term
+    $ no_messages_term
   )
 
 (****************************************************************************)
