@@ -80,6 +80,28 @@ let run (conf : conf) =
 (* Command-line terms *)
 (****************************************************************************)
 
+let after_context_term : string option Term.t =
+  let info =
+    Arg.info [ "A"; "after-context" ] ~docv:"NUM"
+      ~doc:"Show $(docv) lines of context after each match. NOT IMPLEMENTED"
+  in
+  Arg.value (Arg.opt (Arg.some Arg.string) None info)
+
+let before_context_term : string option Term.t =
+  let info =
+    Arg.info [ "B"; "before-context" ] ~docv:"NUM"
+      ~doc:"Show $(docv) lines of context before each match. NOT IMPLEMENTED"
+  in
+  Arg.value (Arg.opt (Arg.some Arg.string) None info)
+
+let context_term : string option Term.t =
+  let info =
+    Arg.info [ "C"; "context" ] ~docv:"NUM"
+      ~doc:"Show $(docv) lines of context before and after each match. \
+            Incompatible with $(b,-A) and $(b,-B). NOT IMPLEMENTED"
+  in
+  Arg.value (Arg.opt (Arg.some Arg.string) None info)
+
 let format_conv =
   let parse = function
     | "text" -> Ok Text
@@ -190,7 +212,7 @@ let no_color_term =
 let (let/) = Result.bind
 
 let cmd_term =
-  let combine chdir debug dune_root output_format queries scan_root strict no_messages no_color =
+  let combine _after_context _before_context _context chdir debug dune_root output_format queries scan_root strict no_messages no_color =
     let scan_root =
       match scan_root with
       | Some path when not (Filename.is_relative path) ->
@@ -225,7 +247,8 @@ let cmd_term =
         exit exit_error)
   in
   Term.(
-    const combine $ chdir_term $ debug_term $ dune_root_term
+    const combine $ after_context_term $ before_context_term $ context_term
+    $ chdir_term $ debug_term $ dune_root_term
     $ format_term $ query_term $ scan_root_term $ strict_term
     $ no_messages_term $ no_color_term
   )

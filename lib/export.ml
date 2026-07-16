@@ -207,15 +207,17 @@ end
 
 type finding = {
   location: location;
+  lines_before: string list;  (** optional lines of context before the match *)
   lines: string list;
   (**
      lines extracted from the range info without end-of-line markers. This
      is redundant as long as the original file remains available.
   *)
+  lines_after: string list;  (** optional lines of context after the match *)
 }
 
-let create_finding ~location ~lines () : finding =
-  { location; lines }
+let create_finding ~location ?(lines_before = []) ~lines ?(lines_after = []) () : finding =
+  { location; lines_before; lines; lines_after }
 
 let finding_of_yojson (x : Yojson.Safe.t) : finding =
   match x with
@@ -235,18 +237,30 @@ let finding_of_yojson (x : Yojson.Safe.t) : finding =
       | Some v -> location_of_yojson v
       | None -> Atdml_runtime.Yojson.missing_field "finding" "location"
     in
+    let lines_before =
+      match assoc_ "lines_before" with
+      | None -> []
+      | Some v -> (Atdml_runtime.Yojson.list_of_yojson Atdml_runtime.Yojson.string_of_yojson) v
+    in
     let lines =
       match assoc_ "lines" with
       | Some v -> (Atdml_runtime.Yojson.list_of_yojson Atdml_runtime.Yojson.string_of_yojson) v
       | None -> Atdml_runtime.Yojson.missing_field "finding" "lines"
     in
-    { location; lines }
+    let lines_after =
+      match assoc_ "lines_after" with
+      | None -> []
+      | Some v -> (Atdml_runtime.Yojson.list_of_yojson Atdml_runtime.Yojson.string_of_yojson) v
+    in
+    { location; lines_before; lines; lines_after }
   | _ -> Atdml_runtime.Yojson.bad_type "finding" x
 
 let yojson_of_finding (x : finding) : Yojson.Safe.t =
   `Assoc (List.concat [
     [("location", yojson_of_location x.location)];
+    [("lines_before", (Atdml_runtime.Yojson.yojson_of_list Atdml_runtime.Yojson.yojson_of_string) x.lines_before)];
     [("lines", (Atdml_runtime.Yojson.yojson_of_list Atdml_runtime.Yojson.yojson_of_string) x.lines)];
+    [("lines_after", (Atdml_runtime.Yojson.yojson_of_list Atdml_runtime.Yojson.yojson_of_string) x.lines_after)];
   ])
 
 let finding_of_json s =
