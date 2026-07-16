@@ -35,14 +35,17 @@ let test_ocamlgrep
     ?(check_details = fun _finding -> true)
     ?(dune_root = ".")
     ?(scan_root = ".")
-    ?(tolerate_extra_findings = false) name query
+    ?(tolerate_extra_findings = false)
+    ?(before = 0)
+    ?(after = 0)
+    name query
     expected_findings =
   let test_func () =
     Testo.with_chdir (Fpath.v "tests/proj") @@ fun () ->
     eprintf "Query: %s\n" query;
     eprintf "Scan root: %s\n" scan_root;
     let { findings; warnings; error } : Ocamlgrep.search_results =
-      Ocamlgrep.search ~dune_root ~scan_root [ query ]
+      Ocamlgrep.search ~dune_root ~scan_root ~before ~after [ query ]
     in
     eprintf "Warnings:\n";
     print_warnings warnings;
@@ -120,6 +123,32 @@ let tests _env =
       ~scan_root:"lib/types.ml"
       "(__ : int * _)"
       [ [ {|(1, "hello")|} ] ];
+    (* strings.ml line 11: [  let priv = "priv"]
+       line 9: [  type t = string]
+       line 10: []
+       line 12: [end] *)
+    test_ocamlgrep "context before"
+      ~scan_root:"lib/strings.ml"
+      ~before:2
+      ~check_details:(fun (f : finding) ->
+        f.lines_before = ["  type t = string"; ""])
+      {|"priv"|}
+      [ [ {|"priv"|} ] ];
+    test_ocamlgrep "context after"
+      ~scan_root:"lib/strings.ml"
+      ~after:1
+      ~check_details:(fun (f : finding) ->
+        f.lines_after = ["end"])
+      {|"priv"|}
+      [ [ {|"priv"|} ] ];
+    test_ocamlgrep "context before and after"
+      ~scan_root:"lib/strings.ml"
+      ~before:1
+      ~after:1
+      ~check_details:(fun (f : finding) ->
+        f.lines_before = [""] && f.lines_after = ["end"])
+      {|"priv"|}
+      [ [ {|"priv"|} ] ];
   ]
 
 let () = Testo.interpret_argv ~project_name:"ocamlgrep" tests

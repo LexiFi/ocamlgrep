@@ -26,10 +26,12 @@ type conf = {
   strict : bool;
   no_messages : bool;
   use_color : bool;
+  before_context : int;
+  after_context : int;
 }
 
-let handle_event ~has_finding ~has_warning (conf : conf) (ev : Ocamlgrep.event)
-    =
+let handle_event ~has_finding ~has_warning ~last_finding_end (conf : conf)
+    (ev : Ocamlgrep.event) =
   match ev with
   | Scan_module module_ ->
       if conf.debug then eprintf "scan module %s\n%!" module_
@@ -38,6 +40,19 @@ let handle_event ~has_finding ~has_warning (conf : conf) (ev : Ocamlgrep.event)
       if not conf.no_messages then Ocamlgrep.warn ~use_color:conf.use_color msg
   | Finding finding ->
       has_finding := true;
+      let loc = finding.location in
+      let start_line = loc.start.row + 1 in
+      let end_line = loc.end_.row + 1 in
+      let n_before = List.length finding.lines_before in
+      let n_after = List.length finding.lines_after in
+      let first_printed = start_line - n_before in
+      let last_printed = end_line + n_after in
+      (match !last_finding_end with
+       | Some (prev_file, prev_last) when prev_file = loc.file ->
+           (* '--' indicates a gap of a least one line *)
+           if prev_last < first_printed - 1 then print_string "--\n"
+       | _ -> ());
+      last_finding_end := Some (loc.file, last_printed);
       printf "%s%!" (Ocamlgrep.show_finding ~use_color:conf.use_color finding)
 
 (* Exit codes as documented in the man page *)
@@ -53,12 +68,15 @@ let run (conf : conf) =
   | Text ->
       let has_finding = ref false in
       let has_warning = ref false in
+      let last_finding_end = ref None in
       (match
          Ocamlgrep.incremental_search
            ~debug:conf.debug
            ?dune_root:conf.dune_root
            ?scan_root:conf.scan_root
-           (handle_event ~has_finding ~has_warning conf)
+           ~before:conf.before_context
+           ~after:conf.after_context
+           (handle_event ~has_finding ~has_warning ~last_finding_end conf)
            conf.queries
        with
       | Ok () ->
@@ -68,7 +86,9 @@ let run (conf : conf) =
       | Error msg -> failwith msg)
   | JSON ->
       let res =
-        Ocamlgrep.search ~debug:conf.debug ?scan_root:conf.scan_root conf.queries
+        Ocamlgrep.search ~debug:conf.debug ?scan_root:conf.scan_root
+          ~before:conf.before_context ~after:conf.after_context
+          conf.queries
       in
       print_string (Ocamlgrep.to_json res);
       flush stdout;
@@ -80,27 +100,27 @@ let run (conf : conf) =
 (* Command-line terms *)
 (****************************************************************************)
 
-let after_context_term : string option Term.t =
+let after_context_term : int option Term.t =
   let info =
     Arg.info [ "A"; "after-context" ] ~docv:"NUM"
-      ~doc:"Show $(docv) lines of context after each match. NOT IMPLEMENTED"
+      ~doc:"Show $(docv) lines of context after each match."
   in
-  Arg.value (Arg.opt (Arg.some Arg.string) None info)
+  Arg.value (Arg.opt (Arg.some Arg.int) None info)
 
-let before_context_term : string option Term.t =
+let before_context_term : int option Term.t =
   let info =
     Arg.info [ "B"; "before-context" ] ~docv:"NUM"
-      ~doc:"Show $(docv) lines of context before each match. NOT IMPLEMENTED"
+      ~doc:"Show $(docv) lines of context before each match."
   in
-  Arg.value (Arg.opt (Arg.some Arg.string) None info)
+  Arg.value (Arg.opt (Arg.some Arg.int) None info)
 
-let context_term : string option Term.t =
+let context_term : int option Term.t =
   let info =
     Arg.info [ "C"; "context" ] ~docv:"NUM"
       ~doc:"Show $(docv) lines of context before and after each match. \
-            Incompatible with $(b,-A) and $(b,-B). NOT IMPLEMENTED"
+            Equivalent to specifying both $(b,-B) $(docv) and $(b,-A) $(docv)."
   in
-  Arg.value (Arg.opt (Arg.some Arg.string) None info)
+  Arg.value (Arg.opt (Arg.some Arg.int) None info)
 
 let format_conv =
   let parse = function
@@ -212,7 +232,7 @@ let no_color_term =
 let (let/) = Result.bind
 
 let cmd_term =
-  let combine _after_context _before_context _context chdir debug dune_root output_format queries scan_root strict no_messages no_color =
+  let combine after_context before_context context chdir debug dune_root output_format queries scan_root strict no_messages no_color =
     let scan_root =
       match scan_root with
       | Some path when not (Filename.is_relative path) ->
@@ -221,6 +241,12 @@ let cmd_term =
       | _ -> scan_root
     in
     let use_color = not no_color in
+    let before_context =
+      Option.value before_context ~default:(Option.value context ~default:0)
+    in
+    let after_context =
+      Option.value after_context ~default:(Option.value context ~default:0)
+    in
     let/ () =
       if queries = [] then Error "Please specify a search pattern."
       else Ok ()
@@ -237,6 +263,8 @@ let cmd_term =
            strict;
            no_messages;
            use_color;
+           before_context;
+           after_context;
          }
      with
     | Failure s | Sys_error s ->

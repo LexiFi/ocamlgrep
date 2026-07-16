@@ -688,7 +688,7 @@ let location_of_loc (loc : Location.t) source_path : Export.location =
       };
   }
 
-let search ~make_valid_source_path query_exprs cmt =
+let search ~make_valid_source_path ~before ~after query_exprs cmt =
   (* We can't assume a single source file because a preprocessed file
      contains locations referring to more than one source file. *)
   let get_file_lines = memoize (Hashtbl.create 10) read_lines in
@@ -702,5 +702,15 @@ let search ~make_valid_source_path query_exprs cmt =
         let s = max 1 (min num_lines loc_start.pos_lnum) in
         let e = max s (min num_lines loc_end.pos_lnum) in
         let lines = List.init (e - s + 1) (fun k -> src_lines.(s - 1 + k)) in
-        Some { Export.location = location_of_loc loc source_path; lines })
+        let lines_before =
+          let b = max 1 (s - before) in
+          List.init (s - b) (fun k -> src_lines.(b - 1 + k))
+        in
+        let lines_after =
+          let a = min num_lines (e + after) in
+          List.init (a - e) (fun k -> src_lines.(e + k))
+        in
+        Some
+          { Export.location = location_of_loc loc source_path;
+            lines_before; lines; lines_after })
     (List.concat_map (fun query_expr -> search_cmt query_expr cmt) query_exprs)

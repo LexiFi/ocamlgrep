@@ -60,7 +60,17 @@ let finding ?(use_color = true) (finding : Export.finding) =
   in
   let buf = Buffer.create 100 in
   bprintf buf "%s\n" header;
-  let gutter_width = String.length (string_of_int end_line) in
+  let n_before = List.length finding.lines_before in
+  let n_after = List.length finding.lines_after in
+  let last_line = end_line + n_after in
+  let gutter_width = String.length (string_of_int last_line) in
+  List.iteri
+    (fun i line ->
+      let lineno = start_line - n_before + i in
+      bprintf buf "%s | %s\n"
+        (color Yellow "%*d" gutter_width lineno)
+        line)
+    finding.lines_before;
   List.iteri
     (fun i line ->
       let lineno = start_line + i in
@@ -70,6 +80,13 @@ let finding ?(use_color = true) (finding : Export.finding) =
         (color Yellow "%*d" gutter_width lineno)
         (highlight_range ~use_color line lo hi))
     finding.lines;
+  List.iteri
+    (fun i line ->
+      let lineno = end_line + 1 + i in
+      bprintf buf "%s | %s\n"
+        (color Yellow "%*d" gutter_width lineno)
+        line)
+    finding.lines_after;
   Buffer.contents buf
 
 let warn ?(use_color = true) msg =
