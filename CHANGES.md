@@ -1,3 +1,10 @@
+## Working version
+
+* Add flag `--no-messages` to suppress non-critical output (warnings, etc). Add
+  flag `--no-color` to suppress color output. Add optional argument `-e PATTERN`
+  to support more than one search pattern simultaneously.
+  ([#24](https://github.com/LexiFi/ocamlgrep/pull/24)).
+
 ## 0.1.1 (2026-07-05)
 
 * Fix the build so as to not require test-only dependencies for the

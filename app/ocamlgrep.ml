@@ -17,23 +17,16 @@ open Cmdliner
 type output_format = Text | JSON
 
 type conf = {
-  query : string;
+  queries : string list;
   scan_root : string option;
   chdir : string option;
   debug : bool;
   dune_root : string option;
   output_format : output_format;
   strict : bool;
+  no_messages : bool;
   use_color : bool;
 }
-
-(* Colors are emitted unless the user opts out via the standard NO_COLOR env
-   variable (https://no-color.org/). This keeps the snapshot tests readable
-   without changing the default interactive behavior. *)
-let use_color () =
-  match Sys.getenv_opt "NO_COLOR" with
-  | Some s when s <> "" -> false
-  | _ -> true
 
 let handle_event ~has_finding ~has_warning (conf : conf) (ev : Ocamlgrep.event)
     =
@@ -42,7 +35,7 @@ let handle_event ~has_finding ~has_warning (conf : conf) (ev : Ocamlgrep.event)
       if conf.debug then eprintf "scan module %s\n%!" module_
   | Warning msg ->
       has_warning := true;
-      Ocamlgrep.warn ~use_color:conf.use_color msg
+      if not conf.no_messages then Ocamlgrep.warn ~use_color:conf.use_color msg
   | Finding finding ->
       has_finding := true;
       printf "%s%!" (Ocamlgrep.show_finding ~use_color:conf.use_color finding)
@@ -66,7 +59,7 @@ let run (conf : conf) =
            ?dune_root:conf.dune_root
            ?scan_root:conf.scan_root
            (handle_event ~has_finding ~has_warning conf)
-           conf.query
+           conf.queries
        with
       | Ok () ->
           if conf.strict && !has_warning then exit exit_error
@@ -75,7 +68,7 @@ let run (conf : conf) =
       | Error msg -> failwith msg)
   | JSON ->
       let res =
-        Ocamlgrep.search ~debug:conf.debug ?scan_root:conf.scan_root conf.query
+        Ocamlgrep.search ~debug:conf.debug ?scan_root:conf.scan_root conf.queries
       in
       print_string (Ocamlgrep.to_json res);
       flush stdout;
@@ -100,12 +93,22 @@ let format_conv =
   in
   Arg.conv ~docv:"FORMAT" (parse, print)
 
-let query_term : string Term.t =
-  let info =
-    Arg.info [] ~docv:"PATTERN"
-      ~doc:"OCaml expression used as a search pattern (see $(b,PATTERN SYNTAX))."
+let query_term : string list Term.t =
+  let info names =
+    Arg.info names ~docv:"PATTERN"
+      ~doc:
+        "OCaml expression used as search pattern (see $(b,PATTERN SYNTAX))."
   in
-  Arg.required (Arg.pos 0 (Arg.some Arg.string) None info)
+  let query_pos =
+    let info = info [] in
+    Arg.value (Arg.pos 0 (Arg.some Arg.string) None info)
+  in
+  let query_opt =
+    let info = info ["e"] in
+    Arg.value (Arg.opt_all Arg.string [] info)
+  in
+  let cons_opt x xs = match x with None -> xs | Some x -> x :: xs in
+  Term.(const cons_opt $ query_pos $ query_opt)
 
 let scan_root_term : string option Term.t =
   let info =
@@ -157,8 +160,37 @@ let strict_term : bool Term.t =
   in
   Arg.value (Arg.flag info)
 
+let no_messages_term : bool Term.t =
+  let info =
+    Arg.info [ "no-messages" ]
+      ~doc:
+        "Suppress non-critical output (warnings, etc)."
+  in
+  Arg.value (Arg.flag info)
+
+let no_color_var =
+  let doc = "See $(opt). Enabled if set to anything but the empty string." in
+  Cmd.Env.info ~doc "NO_COLOR"
+
+let no_color_term =
+  let doc = "Disable ANSI text styling." in
+  (* We can't use Arg.flag here because it doesn't parse
+     like https://no-color.org wants. *)
+  let no_color =
+    [ true, Arg.info ["no-color"] ~env:no_color_var ~doc ]
+  in
+  let env_no_color no_color env =
+    no_color ||
+    match env "NO_COLOR" with
+    | None | Some "" -> false
+    | Some _ -> true
+  in
+  Term.(const env_no_color $ Arg.(value & vflag false no_color) $ env)
+
+let (let/) = Result.bind
+
 let cmd_term =
-  let combine chdir debug dune_root output_format query scan_root strict =
+  let combine chdir debug dune_root output_format queries scan_root strict no_messages no_color =
     let scan_root =
       match scan_root with
       | Some path when not (Filename.is_relative path) ->
@@ -166,29 +198,36 @@ let cmd_term =
           exit exit_error
       | _ -> scan_root
     in
+    let use_color = not no_color in
+    let/ () =
+      if queries = [] then Error "Please specify a search pattern."
+      else Ok ()
+    in
     (try
        run
          {
-           query;
+           queries;
            scan_root;
            chdir;
            debug;
            dune_root;
            output_format;
            strict;
-           use_color = use_color ();
+           no_messages;
+           use_color;
          }
      with
     | Failure s | Sys_error s ->
-        Ocamlgrep.error ~use_color:(use_color ()) s;
+        Ocamlgrep.error ~use_color s;
         exit exit_error
     | exn ->
-        Ocamlgrep.error ~use_color:(use_color ()) (Printexc.to_string exn);
+        Ocamlgrep.error ~use_color (Printexc.to_string exn);
         exit exit_error)
   in
   Term.(
     const combine $ chdir_term $ debug_term $ dune_root_term
     $ format_term $ query_term $ scan_root_term $ strict_term
+    $ no_messages_term $ no_color_term
   )
 
 (****************************************************************************)
@@ -254,8 +293,7 @@ let man : Manpage.block list =
        7 |   | None -> None\n\
        8 |   | Some y -> Some y";
     `P
-      "The matched range is highlighted in red unless the $(b,NO_COLOR) \
-       environment variable is set (https://no-color.org/).";
+      "The matched range is highlighted in red unless $(b,--no-color) is used.";
     `S Manpage.s_exit_status;
     `P "$(b,0): one or more matches were found.";
     `P "$(b,1): no matches were found.";
@@ -272,4 +310,4 @@ let () =
   let info =
     Cmd.info "ocamlgrep" ~doc:"structural search for OCaml code" ~man
   in
-  Cmd.v info cmd_term |> Cmd.eval |> exit
+  Term.term_result' ~usage:true cmd_term |> Cmd.v info |> Cmd.eval |> exit

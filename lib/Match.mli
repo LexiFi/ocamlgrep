@@ -38,11 +38,11 @@ val parse_query : string -> Parsetree.expression
 
 val search :
   make_valid_source_path:(string -> string) ->
-  Parsetree.expression ->
+  Parsetree.expression list ->
   Cmt_format.cmt_infos ->
   Export.finding list
-(** [search_cmt ~make_valid_source_path query cmt] scans the typed tree
-    in [cmt] for sub-expressions matching [query] and returns matching
+(** [search ~make_valid_source_path queries cmt] scans the typed tree
+    in [cmt] for sub-expressions matching [queries] and returns matching
     locations. Matching lines are extracted from the source file.
 
     [make_valid_source_path] is in charge of rewriting project-relative

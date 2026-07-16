@@ -42,7 +42,7 @@ let test_ocamlgrep
     eprintf "Query: %s\n" query;
     eprintf "Scan root: %s\n" scan_root;
     let { findings; warnings; error } : Ocamlgrep.search_results =
-      Ocamlgrep.search ~dune_root ~scan_root query
+      Ocamlgrep.search ~dune_root ~scan_root [ query ]
     in
     eprintf "Warnings:\n";
     print_warnings warnings;
