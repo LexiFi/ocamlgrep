@@ -9,7 +9,7 @@ bug-reports: "https://github.com/LexiFi/ocamlgrep/issues"
 depends: [
   "dune" {>= "3.18"}
   "ocaml" {>= "4.14"}
-  "cppo"
+  "cppo" {build}
   "csexp" {>= "1.4.0"}
   "fpath"
   "yojson" {>= "3.0.0"}

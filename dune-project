@@ -18,7 +18,7 @@
  (synopsis "OCaml structural grep library")
  (depends
   (ocaml (>= 4.14))
-  cppo
+  (cppo :build)
   (csexp (>= 1.4.0))
   fpath
   (yojson (>= 3.0.0))
