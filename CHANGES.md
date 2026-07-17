@@ -1,8 +1,12 @@
 ## Working version
 
+* Add options `-A`/`--after-context`, `-B/--before-context`, and
+  `-C/--context` for printing lines of context before and after each
+  match, similar to the same options found in grep
+  ([#26](https://github.com/LexiFi/ocamlgrep/issues/26)).
 * Add flag `--no-messages` to suppress non-critical output (warnings, etc). Add
   flag `--no-color` to suppress color output. Add optional argument `-e PATTERN`
-  to support more than one search pattern simultaneously.
+  to support more than one search pattern simultaneously
   ([#24](https://github.com/LexiFi/ocamlgrep/pull/24)).
 
 ## 0.1.1 (2026-07-05)

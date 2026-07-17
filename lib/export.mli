@@ -46,14 +46,16 @@ end
 
 type finding = {
   location: location;
+  lines_before: string list;  (** optional lines of context before the match *)
   lines: string list;
   (**
      lines extracted from the range info without end-of-line markers. This
      is redundant as long as the original file remains available.
   *)
+  lines_after: string list;  (** optional lines of context after the match *)
 }
 
-val create_finding : location:location -> lines:string list -> unit -> finding
+val create_finding : location:location -> ?lines_before:string list -> lines:string list -> ?lines_after:string list -> unit -> finding
 val finding_of_yojson : Yojson.Safe.t -> finding
 val yojson_of_finding : finding -> Yojson.Safe.t
 val finding_of_json : string -> finding
@@ -61,7 +63,7 @@ val json_of_finding : finding -> string
 
 module Finding : sig
   type nonrec t = finding
-  val create : location:location -> lines:string list -> unit -> t
+  val create : location:location -> ?lines_before:string list -> lines:string list -> ?lines_after:string list -> unit -> t
   val of_yojson : Yojson.Safe.t -> t
   val to_yojson : t -> Yojson.Safe.t
   val of_json : string -> t

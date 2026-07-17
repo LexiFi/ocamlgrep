@@ -38,16 +38,22 @@ val parse_query : string -> Parsetree.expression
 
 val search :
   make_valid_source_path:(string -> string) ->
+  before:int ->
+  after:int ->
   Parsetree.expression list ->
   Cmt_format.cmt_infos ->
   Export.finding list
-(** [search ~make_valid_source_path queries cmt] scans the typed tree
-    in [cmt] for sub-expressions matching [queries] and returns matching
+(** [search ~make_valid_source_path ~before ~after queries cmt] scans the typed
+    tree in [cmt] for sub-expressions matching [queries] and returns matching
     locations. Matching lines are extracted from the source file.
 
     [make_valid_source_path] is in charge of rewriting project-relative
     source paths into valid paths that are desirable to the user (prefer
     relative paths starting with the scan root over absolute paths).
+
+    [before] and [after] are the number of context lines to include before and
+    after each match, populating [Export.finding.lines_before] and
+    [Export.finding.lines_after].
 
     @raise Cannot_parse_type
 *)

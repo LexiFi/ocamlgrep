@@ -21,9 +21,13 @@ type location = {
 
 type finding = {
   location : location;
+  lines_before : string list;
+      (** Optional context lines immediately before the match. *)
   lines : string list;
       (** Source lines spanned by [loc], from [loc_start.pos_lnum] to
           [loc_end.pos_lnum] inclusive. Always non-empty. *)
+  lines_after : string list;
+      (** Optional context lines immediately after the match. *)
 }
 (** A region of source code that matched a query pattern. *)
 
@@ -57,6 +61,8 @@ val search :
   ?debug:bool ->
   ?dune_root:string ->
   ?scan_root:string ->
+  ?before:int ->
+  ?after:int ->
   string list -> search_results
 (** [search queries] searches the project containing the current directory for
     OCaml expressions matching the patterns [queries].
@@ -65,12 +71,16 @@ val search :
     @param scan_root
       only scan this subtree which must be a folder or or a source file from
       which the OCaml module name can be derived by removing extensions and
-      capitalization. Must be a relative path. *)
+      capitalization. Must be a relative path.
+    @param before number of context lines to include before each match.
+    @param after number of context lines to include after each match. *)
 
 val incremental_search :
   ?debug:bool ->
   ?dune_root:string ->
   ?scan_root:string ->
+  ?before:int ->
+  ?after:int ->
   (event -> unit) ->
   string list ->
   (unit, string) result

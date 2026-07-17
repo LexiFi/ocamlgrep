@@ -17,7 +17,9 @@ type location = Export.location = {
 
 type finding = Export.finding = {
   location : location;
+  lines_before : string list;
   lines : string list;
+  lines_after : string list;
 }
 
 type search_results = Export.search_results = {
@@ -152,6 +154,8 @@ let resolve_cmt (workspace : Dune_workspace.t) ~cmt_path ~cmt_sourcefile
 let process_one_cmt
     ?(debug = false)
     ~make_valid_source_path
+    ~before
+    ~after
     (workspace : Dune_workspace.t)
     (module_ : Dune_workspace.module_)
     handle_event queries : (unit, unit) result
@@ -180,7 +184,7 @@ let process_one_cmt
       in
       handle_event (Scan_module module_.name);
       match
-        Match.search ~make_valid_source_path queries cmt
+        Match.search ~make_valid_source_path ~before ~after queries cmt
       with
       | exception exn ->
           warning
@@ -352,7 +356,8 @@ let rec parse_search_queries = function
 (** Generic incremental search. [search_fn] is called for each cmt file and
     should return a list of findings. [handle_event] accumulates state. *)
 let incremental_search
-    ?debug ?dune_root ?scan_root (handle_event : event -> unit)
+    ?debug ?dune_root ?scan_root ?(before = 0) ?(after = 0)
+    (handle_event : event -> unit)
     queries =
   let/ exprs = parse_search_queries queries in
   match dune_root with
@@ -406,7 +411,7 @@ let incremental_search
           (fun successes module_ ->
             match
               process_one_cmt
-                ?debug ~make_valid_source_path
+                ?debug ~make_valid_source_path ~before ~after
                 workspace module_ handle_event exprs
             with
             | Ok () -> successes + 1
@@ -425,7 +430,7 @@ let incremental_search
       Ok ()
 
 (* High-level search entry point for use by ocaml-lsp and similar tools. *)
-let search ?debug ?dune_root ?scan_root queries =
+let search ?debug ?dune_root ?scan_root ?(before = 0) ?(after = 0) queries =
   let findings = ref [] in
   let warnings = ref [] in
   let handle_event = function
@@ -434,7 +439,7 @@ let search ?debug ?dune_root ?scan_root queries =
     | Warning w -> warnings := w :: !warnings
   in
   let res =
-    incremental_search ?debug ?dune_root ?scan_root handle_event queries in
+    incremental_search ?debug ?dune_root ?scan_root ~before ~after handle_event queries in
   let findings = List.rev !findings in
   let warnings = List.rev !warnings in
   let error =
