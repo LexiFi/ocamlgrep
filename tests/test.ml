@@ -186,15 +186,52 @@ let tests _env =
     test_ocamlgrep "fun with two parameters"
       ~scan_root:"lib/functions.ml"
       "List.sort (fun __1 __2 -> compare __2 __1) __"
-      [ [ "List.sort (fun a b -> compare b a) l" ] ];
+      [ [ "List.sort (fun a b -> compare b a) l" ];
+        [ "List.sort (fun a -> function b -> compare b a) l" ] ];
     test_ocamlgrep "fun with two parameters, mismatch"
       ~scan_root:"lib/functions.ml"
-      "List.sort (fun __1 __2 -> compare __1 __2) __"
+      "List.sort (fun __1 __2 -> compare __1 __2 + 1) __"
       [];
-    test_ocamlgrep "fun with the wrong number of parameters"
+    test_ocamlgrep "fun with too many parameters"
       ~scan_root:"lib/functions.ml"
-      "List.sort (fun __ -> __) __"
+      "List.filter_map (fun __ __ -> __) __"
       [];
+    test_ocamlgrep "fun with fewer parameters"
+      ~scan_root:"lib/functions.ml"
+      "List.sort (fun __1 -> __) __"
+      [ [ "List.sort (fun a b -> compare b a) l" ];
+        [ "List.sort (fun a -> fun b -> compare a b) l" ];
+        [ "List.sort (fun a -> function b -> compare b a) l" ] ];
+    test_ocamlgrep "flat fun matches nested fun"
+      ~scan_root:"lib/functions.ml"
+      "List.sort (fun __1 __2 -> compare __1 __2) __"
+      [ [ "List.sort (fun a -> fun b -> compare a b) l" ] ];
+    test_ocamlgrep "nested fun matches flat fun"
+      ~scan_root:"lib/functions.ml"
+      "List.sort (fun __1 -> fun __2 -> compare __2 __1) __"
+      [ [ "List.sort (fun a b -> compare b a) l" ];
+        [ "List.sort (fun a -> function b -> compare b a) l" ] ];
+    test_ocamlgrep "fun matches function"
+      ~scan_root:"lib/functions.ml"
+      "List.map (fun __1 -> __1 + 1) __"
+      [ [ "List.map (function x -> x + 1) l" ] ];
+    test_ocamlgrep "function matches fun"
+      ~scan_root:"lib/functions.ml"
+      "List.filter_map (function __1 -> __1) __"
+      [ [ "List.filter_map (fun x -> x) l" ] ];
+    test_ocamlgrep "fun matches every clause of a function"
+      ~scan_root:"lib/functions.ml"
+      "List.filter_map (fun __ -> __) __"
+      [ [ "List.filter_map (fun x -> x) l" ];
+        [ "List.filter_map (function Some x -> Some (x + 1) | None -> None) l" ] ];
+    test_ocamlgrep "function does not match a labeled parameter"
+      ~scan_root:"lib/functions.ml"
+      "__ ~cmp:(function __ -> __)"
+      [];
+    test_ocamlgrep "fun with a label, then function"
+      ~scan_root:"lib/functions.ml"
+      "__ ~cmp:(fun ~x -> function __ -> __)"
+      [ [ "g ~cmp:(fun ~x y -> x - y)" ] ];
     test_ocamlgrep "fun with a labeled parameter"
       ~scan_root:"lib/functions.ml"
       "(fun ~x __ -> __)"

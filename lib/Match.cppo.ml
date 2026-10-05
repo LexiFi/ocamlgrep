@@ -284,26 +284,26 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
       end
   | Pexp_apply (pexpr, pargs), Texp_apply _ -> match_apply pexpr pargs texpr
 #if OCAML_VERSION >= (5, 2, 0)
-  (* [fun p1 ... pn -> e] and [fun p1 ... pn -> function cases] are matched
-     parameter by parameter (with the same number of parameters), then body *)
-  | Pexp_function (pparams, _, pbody), Texp_function (tparams, tbody) ->
-      match_list match_param pparams tparams;
-      begin match (pbody, tbody) with
-      | Pfunction_body pe, Tfunction_body te -> match_expr pe te
-      | Pfunction_cases (pcases, _, _), Tfunction_cases { cases = tcases; _ }
-        ->
-          match_cases pcases tcases
-      | (Pfunction_body _ | Pfunction_cases _), _ -> raise DontMatch
-      end
+  | Pexp_function (pparams, _, pbody), Texp_function _ ->
+      match_function pparams pbody texpr
 #else
-  | ( Pexp_fun (plabel, None, ppat, pe),
-      Texp_function
-        { arg_label; cases = [ { c_lhs; c_guard = None; c_rhs } ]; _ } )
+  (* Before OCaml 5.2, [fun p -> e] is represented as [function p -> e] in the
+     typed tree, and [fun p1 p2 -> e] as [fun p1 -> fun p2 -> e], where the
+     inner function has a ghost location although it is part of the source. *)
+  | Pexp_fun (plabel, None, ppat, pe), Texp_function { arg_label; cases; _ }
     when plabel = arg_label ->
-      match_pat ppat c_lhs;
-      match_expr pe c_rhs
-  | Pexp_function pcases, Texp_function { cases = tcases; _ } ->
-      match_cases pcases tcases
+      let unghost_function c =
+        match c.c_rhs.exp_desc with
+        | Texp_function _ ->
+            let exp_loc = { c.c_rhs.exp_loc with loc_ghost = false } in
+            { c with c_rhs = { c.c_rhs with exp_loc } }
+        | _ -> c
+      in
+      match_cases
+        [ { pc_lhs = ppat; pc_guard = None; pc_rhs = pe } ]
+        (List.map unghost_function cases)
+  | Pexp_function pcases, Texp_function { arg_label = Nolabel; cases; _ } ->
+      match_cases pcases cases
 #endif
   | ( Pexp_construct (pcstr, pexpr_opt),
       Texp_construct (tcstr, _tconstr_desc, texprs) ) ->
@@ -692,6 +692,87 @@ and match_pat_expr : type k. _ -> k general_pattern -> _ =
 and match_exprs pexprs texprs = match_list match_expr pexprs texprs
 
 #if OCAML_VERSION >= (5, 2, 0)
+(* Functions are matched one parameter at a time, so that [fun p1 p2 -> e]
+   matches [fun p1 -> fun p2 -> e], and an unlabeled parameter [p] followed
+   by [rest] matches the single clause [function p -> rest], as is the case
+   with the typed tree before OCaml 5.2. [texpr] is a function whose
+   parameters and body are not necessarily those of the code: we drop its
+   first parameters as we match them. *)
+and match_function pparams pbody texpr =
+  match texpr.exp_desc with
+  | Texp_function (tparams, tbody) -> begin
+      (* the function [texpr] without its first parameter *)
+      let ttail trest =
+        match (trest, tbody) with
+        | [], Tfunction_body te -> te
+        | _ ->
+            let exp_type =
+              match Types.get_desc texpr.exp_type with
+              | Tarrow (_, _, ty, _) -> ty
+              | _ -> texpr.exp_type
+            in
+            { texpr with exp_desc = Texp_function (trest, tbody); exp_type }
+      in
+      (* the pattern function with parameters [prest] and body [pbody] *)
+      let ptail prest =
+        match (prest, pbody) with
+        | [], Pfunction_body pe -> pe
+        | _ -> Ast_helper.Exp.function_ prest None pbody
+      in
+      match (pparams, tparams) with
+      | pparam :: prest, tparam :: trest ->
+          match_param pparam tparam;
+          match_expr (ptail prest) (ttail trest)
+      | [], [] -> begin
+          match (pbody, tbody) with
+          | Pfunction_body pe, Tfunction_body te -> match_expr pe te
+          | Pfunction_cases (pcases, _, _), Tfunction_cases { cases; _ } ->
+              match_cases pcases cases
+          | Pfunction_body pe, Tfunction_cases _ -> match_expr pe texpr
+          | Pfunction_cases _, Tfunction_body te -> match_expr (ptail []) te
+        end
+      | _ :: _, [] -> begin
+          match tbody with
+          | Tfunction_body te -> match_expr (ptail pparams) te
+          | Tfunction_cases { cases; _ } ->
+              (* the clause [p -> fun prest -> pbody] must match each case *)
+              let ppat, prest =
+                match pparams with
+                | { pparam_desc = Pparam_val (Nolabel, None, ppat); _ }
+                  :: prest ->
+                    (ppat, prest)
+                | _ -> raise DontMatch
+              in
+              let prhs = ptail prest in
+              List.iter
+                (fun { c_lhs; c_guard; c_rhs; _ } ->
+                  if Option.is_some c_guard then raise DontMatch;
+                  match_pat ppat c_lhs;
+                  match_expr prhs c_rhs)
+                cases
+        end
+      | [], tparam :: trest -> begin
+          match pbody with
+          | Pfunction_body pe -> match_expr pe texpr
+          | Pfunction_cases (pcases, _, _) ->
+              (* each clause must match [p -> fun trest -> tbody] *)
+              let tpat =
+                match tparam with
+                | { fp_arg_label = Nolabel; fp_kind = Tparam_pat tpat; _ } ->
+                    tpat
+                | _ -> raise DontMatch
+              in
+              let trhs = ttail trest in
+              List.iter
+                (fun { pc_lhs; pc_guard; pc_rhs } ->
+                  if Option.is_some pc_guard then raise DontMatch;
+                  match_pat pc_lhs tpat;
+                  match_expr pc_rhs trhs)
+                pcases
+        end
+    end
+  | _ -> raise DontMatch
+
 and match_param pparam tparam =
   match (pparam.pparam_desc, tparam.fp_kind) with
   | Pparam_val (plabel, None, ppat), Tparam_pat tpat

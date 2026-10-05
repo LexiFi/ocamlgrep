@@ -319,8 +319,10 @@ let man : Manpage.block list =
          same name (which can be locally defined) or $(b,f a x)." );
     `I
       ( "$(b,fun p1 ... pn -> e)",
-        "Anonymous functions are matched parameter by parameter (with the \
-         same labels and number of parameters), then body." );
+        "Anonymous functions are matched one parameter at a time, labels \
+         included: $(b,fun p1 p2 -> e) and $(b,fun p1 -> fun p2 -> e) are \
+         equivalent, and so are $(b,fun p -> e) and $(b,function p -> e) \
+         for an unlabeled parameter." );
     `I
       ( "$(b,(e : t))",
         "Type-constrained match: any expression matching $(b,e) whose inferred \

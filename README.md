@@ -71,10 +71,14 @@ files are up-to-date before using `ocamlgrep`.
   operator with the same name (which can be defined locally in the code) or
   `f a x`.
 
-- Anonymous functions `fun p1 ... pn -> e` are matched parameter by parameter
-  (labels included, and with the same number of parameters), then body. An
-  optional parameter without a default value in the pattern also matches one
-  with a default value in the code.
+- Anonymous functions are matched one parameter at a time (labels included),
+  so that `fun p1 p2 -> e` and `fun p1 -> fun p2 -> e` are equivalent, and an
+  unlabeled parameter `fun p -> e` is equivalent to the single clause
+  `function p -> e` (as for other `function` expressions, a single clause of
+  the pattern can match several clauses of the code). For instance,
+  `fun __ -> __` matches `fun x y -> e` and `function Some x -> e1 | None ->
+  e2`. An optional parameter without a default value in the pattern also
+  matches one with a default value in the code.
 
 - An expression `(... : typexpr)` matches any expression matching `...` and
   whose type is equal to `typexpr`.
