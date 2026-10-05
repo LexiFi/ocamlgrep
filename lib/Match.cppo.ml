@@ -194,9 +194,50 @@ let tconstant_equal_pconst tconst pconst =
   | Error _ -> false
   | Ok pconst -> Parmatch.const_compare tconst pconst = 0
 
+#if OCAML_VERSION >= (5, 4, 0)
+let apply_arg = function
+  | Arg e -> Some e
+  | Omitted _ -> None
+
+let mk_apply_arg e = Arg e
+#else
+let apply_arg x = x
+let mk_apply_arg e = Some e
+#endif
+
+(* In the code, [x |> f a] and [f a @@ x] (for the primitive operators of the
+   standard library) and [(f a) x] are matched as [f a x]. Note that the type
+   checker already turns most [x |> f a] into [(f a) x]. *)
+let rec normalize_texpr texpr =
+  let apply f args =
+    let f = normalize_texpr f in
+    let exp_desc =
+      match f.exp_desc with
+      | Texp_apply (g, args0) -> Texp_apply (g, args0 @ args)
+      | _ -> Texp_apply (f, args)
+    in
+    { texpr with exp_desc }
+  in
+  match texpr.exp_desc with
+  | Texp_apply
+      ( {
+          exp_desc =
+            Texp_ident (_, _, { val_kind = Val_prim { prim_name; _ }; _ });
+          _;
+        },
+        [ (Nolabel, a1); (Nolabel, a2) ] ) -> (
+      match (prim_name, apply_arg a1, apply_arg a2) with
+      | "%revapply", Some x, Some f
+      | "%apply", Some f, Some x ->
+          apply f [ (Nolabel, mk_apply_arg x) ]
+      | _ -> texpr)
+  | Texp_apply (({ exp_desc = Texp_apply _; _ } as f), args) -> apply f args
+  | _ -> texpr
+
 let rec match_expr (pexpr : Parsetree.expression) texpr =
   if texpr.exp_loc.loc_ghost && not pexpr.pexp_loc.loc_ghost then
     raise DontMatch;
+  let texpr = normalize_texpr texpr in
 
   match (pexpr.pexp_desc, texpr.exp_desc) with
   (* __ matches any expression *)
@@ -225,71 +266,42 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
   | Pexp_constant pconst, Texp_constant tconst
     when tconstant_equal_pconst tconst pconst ->
       ()
-  | Pexp_apply (pexpr, pargs), Texp_apply (tapply_expr, targs) ->
-      match_expr pexpr tapply_expr;
-      let rec check_all targs = function
-        | [] -> () (* ok if more arguments in the typed expression *)
-        | ( (Asttypes.Optional _ as lab),
-            {
-              pexp_desc =
-                Pexp_construct
-                  ({ txt = Lident (("MISSING" | "PRESENT") as cstr); _ }, None);
-              _;
-            } )
-          :: pargs ->
-            let pr = cstr = "PRESENT" in
-            let rec loop = function
-              | [] -> raise DontMatch
-#if OCAML_VERSION >= (5, 4, 0)
-              | (l, Arg targ) :: targs when l = lab ->
-#else
-              | (l, Some targ) :: targs when l = lab ->
-#endif
-                  if pr = targ.exp_loc.loc_ghost then raise DontMatch;
-                  targs
-              | x :: targs -> x :: loop targs
-            in
-            check_all (loop targs) pargs
-        | (lab, parg) :: pargs ->
-            let rec loop = function
-              | [] -> raise DontMatch
-#if OCAML_VERSION >= (5, 4, 0)
-              | (l, Arg targ) :: targs when l = lab ->
-#else
-              | (l, Some targ) :: targs when l = lab ->
-#endif
-                  match_expr parg targ;
-                  targs
-              | ( (Asttypes.Optional _ as l),
-#if OCAML_VERSION >= (5, 4, 0)
-                  Arg
-#else
-                  Some
-#endif
-                    {
-                      exp_desc =
-                        Texp_construct ({ txt = Lident "Some"; _ }, _, [ targ ]);
-                      _;
-                    } )
-                :: targs
-                when l = lab ->
-                  match_expr parg targ;
-                  targs
-              | x :: targs -> x :: loop targs
-            in
-            check_all (loop targs) pargs
-      in
-      check_all targs pargs
+  (* [x |> f] and [f @@ x] match either an application of an operator with
+     the same name (which can be locally defined), or the application [f x] *)
+  | ( Pexp_apply
+        ( ({ pexp_desc = Pexp_ident { txt = Lident (("|>" | "@@") as op); _ };
+             _ } as pop),
+          ([ (Nolabel, a1); (Nolabel, a2) ] as pargs) ),
+      _ ) ->
+      if not (try_match (fun () -> match_apply pop pargs texpr) ()) then begin
+        let f, x = if op = "|>" then (a2, a1) else (a1, a2) in
+        let pexp_desc =
+          match f.pexp_desc with
+          | Pexp_apply (g, args) -> Pexp_apply (g, args @ [ (Nolabel, x) ])
+          | _ -> Pexp_apply (f, [ (Nolabel, x) ])
+        in
+        match_expr { pexpr with pexp_desc } texpr
+      end
+  | Pexp_apply (pexpr, pargs), Texp_apply _ -> match_apply pexpr pargs texpr
 #if OCAML_VERSION >= (5, 2, 0)
-  | ( Pexp_function
-        ( [ { pparam_desc = Pparam_val (Nolabel, None, _); _ } ],
-          _,
-          Pfunction_cases (pcases, _, _) ),
-      Texp_function
-        ( [ { fp_arg_label = Nolabel; _ } ],
-          Tfunction_cases { cases = tcases; _ } ) ) ->
-      match_cases pcases tcases
+  (* [fun p1 ... pn -> e] and [fun p1 ... pn -> function cases] are matched
+     parameter by parameter (with the same number of parameters), then body *)
+  | Pexp_function (pparams, _, pbody), Texp_function (tparams, tbody) ->
+      match_list match_param pparams tparams;
+      begin match (pbody, tbody) with
+      | Pfunction_body pe, Tfunction_body te -> match_expr pe te
+      | Pfunction_cases (pcases, _, _), Tfunction_cases { cases = tcases; _ }
+        ->
+          match_cases pcases tcases
+      | (Pfunction_body _ | Pfunction_cases _), _ -> raise DontMatch
+      end
 #else
+  | ( Pexp_fun (plabel, None, ppat, pe),
+      Texp_function
+        { arg_label; cases = [ { c_lhs; c_guard = None; c_rhs } ]; _ } )
+    when plabel = arg_label ->
+      match_pat ppat c_lhs;
+      match_expr pe c_rhs
   | Pexp_function pcases, Texp_function { cases = tcases; _ } ->
       match_cases pcases tcases
 #endif
@@ -442,6 +454,65 @@ let rec match_expr (pexpr : Parsetree.expression) texpr =
       | Texp_extension_constructor _ | Texp_open _ ) ) ->
 #endif
       raise DontMatch
+
+and match_apply pexpr pargs texpr =
+  match texpr.exp_desc with
+  | Texp_apply (tapply_expr, targs) ->
+      match_expr pexpr tapply_expr;
+      let rec check_all targs = function
+        | [] -> () (* ok if more arguments in the typed expression *)
+        | ( (Asttypes.Optional _ as lab),
+            {
+              pexp_desc =
+                Pexp_construct
+                  ({ txt = Lident (("MISSING" | "PRESENT") as cstr); _ }, None);
+              _;
+            } )
+          :: pargs ->
+            let pr = cstr = "PRESENT" in
+            let rec loop = function
+              | [] -> raise DontMatch
+#if OCAML_VERSION >= (5, 4, 0)
+              | (l, Arg targ) :: targs when l = lab ->
+#else
+              | (l, Some targ) :: targs when l = lab ->
+#endif
+                  if pr = targ.exp_loc.loc_ghost then raise DontMatch;
+                  targs
+              | x :: targs -> x :: loop targs
+            in
+            check_all (loop targs) pargs
+        | (lab, parg) :: pargs ->
+            let rec loop = function
+              | [] -> raise DontMatch
+#if OCAML_VERSION >= (5, 4, 0)
+              | (l, Arg targ) :: targs when l = lab ->
+#else
+              | (l, Some targ) :: targs when l = lab ->
+#endif
+                  match_expr parg targ;
+                  targs
+              | ( (Asttypes.Optional _ as l),
+#if OCAML_VERSION >= (5, 4, 0)
+                  Arg
+#else
+                  Some
+#endif
+                    {
+                      exp_desc =
+                        Texp_construct ({ txt = Lident "Some"; _ }, _, [ targ ]);
+                      _;
+                    } )
+                :: targs
+                when l = lab ->
+                  match_expr parg targ;
+                  targs
+              | x :: targs -> x :: loop targs
+            in
+            check_all (loop targs) pargs
+      in
+      check_all targs pargs
+  | _ -> raise DontMatch
 
 and match_typ ptyp texpr =
   match parse_type ptyp with
@@ -619,6 +690,20 @@ and match_pat_expr : type k. _ -> k general_pattern -> _ =
       raise DontMatch
 
 and match_exprs pexprs texprs = match_list match_expr pexprs texprs
+
+#if OCAML_VERSION >= (5, 2, 0)
+and match_param pparam tparam =
+  match (pparam.pparam_desc, tparam.fp_kind) with
+  | Pparam_val (plabel, None, ppat), Tparam_pat tpat
+    when plabel = tparam.fp_arg_label ->
+      match_pat ppat tpat
+  | ( Pparam_val (plabel, pdefault, ppat),
+      Tparam_optional_default (tpat, tdefault) )
+    when plabel = tparam.fp_arg_label ->
+      Option.iter (fun pdefault -> match_expr pdefault tdefault) pdefault;
+      match_pat ppat tpat
+  | (Pparam_val _ | Pparam_newtype _), _ -> raise DontMatch
+#endif
 
 and match_cases : type k. _ -> k case list -> _ =
  fun pcases tcases -> match_set match_case pcases tcases

@@ -149,6 +149,70 @@ let tests _env =
         f.lines_before = [""] && f.lines_after = ["end"])
       {|"priv"|}
       [ [ {|"priv"|} ] ];
+    test_ocamlgrep "applications written with |>, @@ or parentheses"
+      ~scan_root:"lib/pipes.ml"
+      "List.map (f __) __"
+      [ [ "List.map (f 1) l" ];
+        [ "l |> List.map (f 2)" ];
+        [ "List.map (f 3) @@ l" ];
+        [ "(List.map (f 4)) l" ] ];
+    test_ocamlgrep "pattern written with |>"
+      ~scan_root:"lib"
+      "__ |> List.map (f __)"
+      [ [ "List.map (f 1) l" ];
+        [ "l |> List.map (f 2)" ];
+        [ "List.map (f 3) @@ l" ];
+        [ "(List.map (f 4)) l" ];
+        [ "l |> List.map (Pipes.f 6)" ] ];
+    test_ocamlgrep "pattern written with @@"
+      ~scan_root:"lib/pipes.ml"
+      "List.map (f __) @@ __"
+      [ [ "List.map (f 1) l" ];
+        [ "l |> List.map (f 2)" ];
+        [ "List.map (f 3) @@ l" ];
+        [ "(List.map (f 4)) l" ] ];
+    test_ocamlgrep "locally defined |> is not an application"
+      ~scan_root:"lib/local_pipe.ml"
+      "List.map (Pipes.f __) __"
+      [];
+    test_ocamlgrep "user-defined operator"
+      ~scan_root:"lib/pipes.ml"
+      "__ >>= List.map (f __)"
+      [ [ "l >>= List.map (f 5)" ] ];
+    test_ocamlgrep "fun with one parameter"
+      ~scan_root:"lib/functions.ml"
+      "List.filter_map (fun __1 -> __1) __"
+      [ [ "List.filter_map (fun x -> x) l" ] ];
+    test_ocamlgrep "fun with two parameters"
+      ~scan_root:"lib/functions.ml"
+      "List.sort (fun __1 __2 -> compare __2 __1) __"
+      [ [ "List.sort (fun a b -> compare b a) l" ] ];
+    test_ocamlgrep "fun with two parameters, mismatch"
+      ~scan_root:"lib/functions.ml"
+      "List.sort (fun __1 __2 -> compare __1 __2) __"
+      [];
+    test_ocamlgrep "fun with the wrong number of parameters"
+      ~scan_root:"lib/functions.ml"
+      "List.sort (fun __ -> __) __"
+      [];
+    test_ocamlgrep "fun with a labeled parameter"
+      ~scan_root:"lib/functions.ml"
+      "(fun ~x __ -> __)"
+      [ [ "(fun ~x y -> x - y)" ] ];
+    test_ocamlgrep "fun with the wrong label"
+      ~scan_root:"lib/functions.ml"
+      "(fun x __ -> __)"
+      [];
+    test_ocamlgrep "function"
+      ~scan_root:"lib/functions.ml"
+      (* before OCaml 5.2, [function x -> e] and [fun x -> e] cannot be
+         distinguished in the typed tree, so we use two clauses *)
+      "List.filter_map (function None -> None | Some __ -> __) __"
+      [ [ "List.filter_map (function Some x -> Some (x + 1) | None -> None) l" ] ];
+    test_ocamlgrep "fun returning function"
+      ~scan_root:"lib/functions.ml"
+      "List.mapi (fun _ -> function __ -> __) __"
+      [ [ "List.mapi (fun _ -> function Some x -> x | None -> 0) l" ] ];
   ]
 
 let () = Testo.interpret_argv ~project_name:"ocamlgrep" tests
