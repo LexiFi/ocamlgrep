@@ -1,4 +1,4 @@
-## Working version
+## 0.1.2 (2026-10-05)
 
 * Add options `-A`/`--after-context`, `-B/--before-context`, and
   `-C/--context` for printing lines of context before and after each
