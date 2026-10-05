@@ -1,3 +1,16 @@
+## Working version
+
+* Match applications written with `|>`, `@@` or explicit parentheses: in the
+  code, `x |> f a`, `f a @@ x` and `(f a) x` are matched as `f a x`; in the
+  pattern, `x |> f a` and `f a @@ x` match either an operator with the same
+  name or `f a x`.
+* Fix the matching of anonymous functions: patterns `fun p1 ... pn -> e`
+  never matched, nor did patterns `function ...` with OCaml 5.2 and later.
+  Functions are now matched one parameter at a time, labels included, so
+  that `fun p1 p2 -> e` is equivalent to `fun p1 -> fun p2 -> e`, and
+  `fun p -> e` to `function p -> e` (as was already the case for the typed
+  tree before OCaml 5.2).
+
 ## 0.1.2 (2026-10-05)
 
 * Add options `-A`/`--after-context`, `-B/--before-context`, and

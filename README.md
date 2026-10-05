@@ -64,6 +64,22 @@ files are up-to-date before using `ocamlgrep`.
   foo ?arg:MISSING
   ```
 
+- Applications written with the operators `|>` and `@@` of the standard
+  library, or with explicit parentheses, are matched as plain applications:
+  `x |> f a`, `f a @@ x` and `(f a) x` in the code are all matched as `f a x`.
+  In the pattern, `x |> f a` and `f a @@ x` match either an application of an
+  operator with the same name (which can be defined locally in the code) or
+  `f a x`.
+
+- Anonymous functions are matched one parameter at a time (labels included),
+  so that `fun p1 p2 -> e` and `fun p1 -> fun p2 -> e` are equivalent, and an
+  unlabeled parameter `fun p -> e` is equivalent to the single clause
+  `function p -> e` (as for other `function` expressions, a single clause of
+  the pattern can match several clauses of the code). For instance,
+  `fun __ -> __` matches `fun x y -> e` and `function Some x -> e1 | None ->
+  e2`. An optional parameter without a default value in the pattern also
+  matches one with a default value in the code.
+
 - An expression `(... : typexpr)` matches any expression matching `...` and
   whose type is equal to `typexpr`.
 

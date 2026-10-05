@@ -312,6 +312,18 @@ let man : Manpage.block list =
          forms $(b,foo ?arg:PRESENT) and $(b,foo ?arg:MISSING) enforce that an \
          optional argument is supplied or absent at the call site." );
     `I
+      ( "$(b,x |> f a), $(b,f a @@ x)",
+        "In the code, $(b,x |> f a), $(b,f a @@ x) (with the operators of the \
+         standard library) and $(b,(f a\\) x) are matched as $(b,f a x). In the \
+         pattern, they match either an application of an operator with the \
+         same name (which can be locally defined) or $(b,f a x)." );
+    `I
+      ( "$(b,fun p1 ... pn -> e)",
+        "Anonymous functions are matched one parameter at a time, labels \
+         included: $(b,fun p1 p2 -> e) and $(b,fun p1 -> fun p2 -> e) are \
+         equivalent, and so are $(b,fun p -> e) and $(b,function p -> e) \
+         for an unlabeled parameter." );
+    `I
       ( "$(b,(e : t))",
         "Type-constrained match: any expression matching $(b,e) whose inferred \
          type unifies with $(b,t). The wildcard $(b,__) is allowed in $(b,t)." );
