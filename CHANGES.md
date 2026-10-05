@@ -1,4 +1,4 @@
-## Working version
+## 0.1.3 (2026-10-05)
 
 * Match applications written with `|>`, `@@` or explicit parentheses: in the
   code, `x |> f a`, `f a @@ x` and `(f a) x` are matched as `f a x`; in the
