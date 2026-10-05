@@ -32,7 +32,7 @@
  (synopsis "OCaml structural grep tool")
  (depends
   ocaml
-  (cmdliner (>= 1.1.0))
+  (cmdliner (>= 2.0.0))
   (ocamlgrep-lib (= :version))
 
   ; Dependencies used for testing special build features
